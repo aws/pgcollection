@@ -1,0 +1,240 @@
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 1';
+  u['aaa'] := 'Hello World';
+  u['bbb'] := 'Hello All';
+  u['ccc'] := 'Hi';
+
+  RAISE NOTICE 'value: %', value(u);
+
+  u := next(u);
+  RAISE NOTICE 'value: %', value(u);
+END
+$$;
+NOTICE:  Iteration test 1
+NOTICE:  value: Hello World
+NOTICE:  value: Hello All
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 3';
+  u['aaa'] := 'Hello World';
+  u['bbb'] := 'Hello All';
+  u['ccc'] := 'Hi';
+
+  u := next(u);
+  u := next(u);
+  u := prev(u);
+  RAISE NOTICE 'value: %', value(u);
+END
+$$;
+NOTICE:  Iteration test 3
+NOTICE:  value: Hello All
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 4';
+  u['aaa'] := 'Hello World';
+  u['bbb'] := 'Hello All';
+  u['ccc'] := 'Hi';
+
+  u := next(u);
+  u := next(u);
+  u := first(u);
+  RAISE NOTICE 'value: %', value(u);
+END
+$$;
+NOTICE:  Iteration test 4
+NOTICE:  value: Hello World
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 5';
+  u['aaa'] := 'Hello World';
+
+  RAISE NOTICE 'isnull: %', isnull(u);
+  u := next(u);
+  RAISE NOTICE 'isnull: %', isnull(u);
+END
+$$;
+NOTICE:  Iteration test 5
+NOTICE:  isnull: f
+NOTICE:  isnull: t
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 6';
+  u['aaa'] := 'Hello World';
+  u['bbb'] := 'Hello All';
+  u['ccc'] := 'Hi';
+
+  u := first(u);
+  WHILE NOT isnull(u) LOOP
+    RAISE NOTICE 'value: %', value(u);
+    u := next(u);
+  END LOOP;
+END
+$$;
+NOTICE:  Iteration test 6
+NOTICE:  value: Hello World
+NOTICE:  value: Hello All
+NOTICE:  value: Hi
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 7';
+  u['aaa'] := 'Hello World';
+  u['bbb'] := 'Hello All';
+  u['ccc'] := 'Hi';
+
+  u := first(u);
+  WHILE NOT isnull(u) LOOP
+    RAISE NOTICE 'value: %', value(u);
+    u := next(u);
+  END LOOP;
+
+  RAISE NOTICE 'value: %', u['bbb'];
+END
+$$;
+NOTICE:  Iteration test 7
+NOTICE:  value: Hello World
+NOTICE:  value: Hello All
+NOTICE:  value: Hi
+NOTICE:  value: Hello All
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 8';
+  u['aaa'] := 'Hello World';
+  u['bbb'] := 'Hello All';
+  u['ccc'] := 'Hi';
+
+  u := delete(u, 'bbb');
+
+  u := first(u);
+  WHILE NOT isnull(u) LOOP
+    RAISE NOTICE 'value: %', value(u);
+    u := next(u);
+  END LOOP;
+END
+$$;
+NOTICE:  Iteration test 8
+NOTICE:  value: Hello World
+NOTICE:  value: Hi
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 9';
+  u['aaa'] := 'Hello World';
+  u['bbb'] := 'Hello All';
+  u['ccc'] := 'Hi';
+
+  u := delete(u, 'aaa');
+
+  u := first(u);
+  WHILE NOT isnull(u) LOOP
+    RAISE NOTICE 'value: %', value(u);
+    u := next(u);
+  END LOOP;
+END
+$$;
+NOTICE:  Iteration test 9
+NOTICE:  value: Hello All
+NOTICE:  value: Hi
+DO $$
+DECLARE
+  u   collection('text');
+  t   text;
+BEGIN
+  RAISE NOTICE 'Iteration test 10';
+  u['ccc'] := '3';
+  u['bbb'] := '2';
+  u['eee'] := '5';
+  u['ddd'] := '4';
+  u['aaa'] := '1';
+
+  u := sort(u);
+  WHILE NOT isnull(u) LOOP
+    RAISE NOTICE 'value: %', value(u);
+    u := next(u);
+  END LOOP;
+END
+$$;
+NOTICE:  Iteration test 10
+NOTICE:  value: 1
+NOTICE:  value: 2
+NOTICE:  value: 3
+NOTICE:  value: 4
+NOTICE:  value: 5
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 11';
+  u['aaa'] := 'Hello World';
+  u['bbb'] := 'Hello All';
+
+  u := next(u);
+  RAISE NOTICE 'value: %', value(u);
+  u := next(u);
+  RAISE NOTICE 'value: %', value(u);
+  u := next(u);
+  RAISE NOTICE 'value: %', value(u);
+END
+$$;
+NOTICE:  Iteration test 11
+NOTICE:  value: Hello All
+NOTICE:  value: <NULL>
+NOTICE:  value: <NULL>
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 12';
+
+  u := first(u);
+  RAISE NOTICE 'value: %', value(u);
+  u := next(u);
+  RAISE NOTICE 'value: %', value(u);
+END
+$$;
+NOTICE:  Iteration test 12
+NOTICE:  value: <NULL>
+NOTICE:  value: <NULL>
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 13';
+
+  u := prev(u);
+  RAISE NOTICE 'value: %', value(u);
+END
+$$;
+NOTICE:  Iteration test 13
+NOTICE:  value: <NULL>
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 14';
+  u['aaa'] := 'Hello World';
+  u['bbb'] := 'Hello All';
+  u['ccc'] := 'Hi';
+
+  u := next(u);
+  u := next(u);
+  RAISE NOTICE 'find after next: %', find(u, 'aaa');
+END
+$$;
+NOTICE:  Iteration test 14
+NOTICE:  find after next: Hello World

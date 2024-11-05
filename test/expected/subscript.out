@@ -1,0 +1,166 @@
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Subscript test 1';
+  u['aaa'] := 'Hello World';
+  u['bbb'] := 'Hello All';
+  u['ccc'] := 'Hi';
+  RAISE NOTICE 'count: %', count(u);
+END
+$$;
+NOTICE:  Subscript test 1
+NOTICE:  count: 3
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Subscript test 2';
+  u['aaa'] := 'Hello World';
+  u['bbb'] := 'Hello All';
+  u['ccc'] := 'Hi';
+
+  RAISE NOTICE 'value: %', u['bbb'];
+END
+$$;
+NOTICE:  Subscript test 2
+NOTICE:  value: Hello All
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Subscript test 3';
+  u['aaa'] := 'Hello World';
+  u['aaa'] := 'Hello All';
+
+  RAISE NOTICE 'count: %', count(u);
+  RAISE NOTICE 'value: %', u['aaa'];
+END
+$$;
+NOTICE:  Subscript test 3
+NOTICE:  count: 1
+NOTICE:  value: Hello All
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Subscript test 4';
+  u['aaa'] := 'Hello World';
+  u['bbb'] := 'Hello All';
+  u['ccc'] := 'Hi';
+
+  RAISE NOTICE 'value: %', u[null];
+END
+$$;
+NOTICE:  Subscript test 4
+NOTICE:  value: Hello World
+DO $$
+DECLARE
+  u   collection('date');
+BEGIN
+  RAISE NOTICE 'Subscript test 5';
+  u['aaa'] := '1999-12-31'::date;
+
+  RAISE NOTICE 'value: %', value(u, null::date);
+END
+$$;
+NOTICE:  Subscript test 5
+NOTICE:  value: 12-31-1999
+DO $$
+DECLARE
+  u   collection('date');
+BEGIN
+  RAISE NOTICE 'Subscript test 6';
+  u['aaa'] := '1999-12-31'::date;
+
+  RAISE NOTICE 'value: %', u[null];
+END
+$$;
+NOTICE:  Subscript test 6
+NOTICE:  value: 12-31-1999
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Subscript test 7';
+  u['aaa'] := 'Hello World';
+  u['bbb'] := 'Hello All';
+  u['ccc'] := 'Hi';
+
+  RAISE NOTICE 'value: %', u['ddd'];
+END
+$$;
+NOTICE:  Subscript test 7
+NOTICE:  value: <NULL>
+DO
+$$
+DECLARE
+  r       pg_class%ROWTYPE;
+  c       collection('pg_class');
+BEGIN
+  RAISE NOTICE 'Subscript test 8';
+  FOR r IN SELECT pg_class.* 
+             FROM pg_class
+            WHERE relname = 'pg_type'
+            LIMIT 1
+  LOOP
+    c[r.relname] = r;
+  END LOOP;
+
+  RAISE NOTICE 'Collection size: %', count(c);
+  RAISE NOTICE 'Key: %', key(c);
+  RAISE NOTICE 'Schema: %', c['pg_type'].relnamespace::regnamespace;
+END
+$$;
+NOTICE:  Subscript test 8
+NOTICE:  Collection size: 1
+NOTICE:  Key: pg_type
+NOTICE:  Schema: pg_catalog
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Subscript test 9';
+  u[repeat('a', 256)] := 'Hello World';
+  RAISE NOTICE 'count: %', count(u);
+END
+$$;
+NOTICE:  Subscript test 9
+NOTICE:  count: 1
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Test 10';
+  u := add(u, 'x1', 'Hello World'::text);
+  u := add(u, 'y3', '12-31-1999'::date);
+  RAISE NOTICE 'count: %', count(u);
+END
+$$;
+NOTICE:  Test 10
+ERROR:  Incompatible value data type
+DETAIL:  Expecting text, but received date
+CONTEXT:  PL/pgSQL function inline_code_block line 7 at assignment
+DO
+$$
+DECLARE
+  parent    collection('collection');
+  child1    collection('text');
+  child2    collection('text');
+BEGIN
+  RAISE NOTICE 'Test 11';
+
+  child1['aaa'] := 'Hello World';
+  child1['bbb'] := 'Hello All';
+
+  child2['AAA'] := 'Hallo Welt';
+  child2['BBB'] := 'Hola Mundo';
+
+  parent['child1'] := child1;
+  parent['child2'] := child2;
+
+  RAISE NOTICE 'Parent: %', parent;
+END
+$$;
+NOTICE:  Test 11
+NOTICE:  Parent: {"value_type": "public.collection", "entries": {"child1": "{\"value_type\": \"pg_catalog.text\", \"entries\": {\"aaa\": \"Hello World\", \"bbb\": \"Hello All\"}}", "child2": "{\"value_type\": \"pg_catalog.text\", \"entries\": {\"AAA\": \"Hallo Welt\", \"BBB\": \"Hola Mundo\"}}"}}
