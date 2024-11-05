@@ -45,7 +45,7 @@ Compile and install the extension (supports PostgreSQL 14+)
 
 ```sh
 cd /tmp
-git clone https://github.com/aws/pgcollection/pgcollection.git # (this will change once published)
+git clone https://github.com/aws/pgcollection.git
 cd pgcollection
 make
 make install
