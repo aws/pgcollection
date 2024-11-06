@@ -85,7 +85,7 @@ typedef struct StatsCounters
 	int64		sort;
 } StatsCounters;
 
-StatsCounters stats;
+extern StatsCounters stats;
 
 extern CollectionHeader *parse_collection(char *json);
 extern CollectionHeader *fetch_collection(FunctionCallInfo fcinfo, int argno);
@@ -98,21 +98,21 @@ void collection_flatten_into(ExpandedObjectHeader *eohptr,
 							void *result, Size allocated_size);
 
 /* custom wait event values, retrieved from shared memory */
-uint32 collection_we_flatsize;
-uint32 collection_we_flatten;
-uint32 collection_we_expand;
-uint32 collection_we_cast;
-uint32 collection_we_add;
-uint32 collection_we_count;
-uint32 collection_we_find;
-uint32 collection_we_delete;
-uint32 collection_we_sort;
-uint32 collection_we_copy;
-uint32 collection_we_value;
-uint32 collection_we_to_table;
-uint32 collection_we_fetch;
-uint32 collection_we_assign;
-uint32 collection_we_input;
-uint32 collection_we_output;
+extern uint32 collection_we_flatsize;
+extern uint32 collection_we_flatten;
+extern uint32 collection_we_expand;
+extern uint32 collection_we_cast;
+extern uint32 collection_we_add;
+extern uint32 collection_we_count;
+extern uint32 collection_we_find;
+extern uint32 collection_we_delete;
+extern uint32 collection_we_sort;
+extern uint32 collection_we_copy;
+extern uint32 collection_we_value;
+extern uint32 collection_we_to_table;
+extern uint32 collection_we_fetch;
+extern uint32 collection_we_assign;
+extern uint32 collection_we_input;
+extern uint32 collection_we_output;
 
 #endif							/* __COLLECTION_H__ */

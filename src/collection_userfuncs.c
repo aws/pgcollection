@@ -54,6 +54,8 @@ PG_FUNCTION_INFO_V1(collection_to_table);
 PG_FUNCTION_INFO_V1(collection_stats);
 PG_FUNCTION_INFO_V1(collection_stats_reset);
 
+StatsCounters stats;
+
 static int by_key(const struct collection *a, const struct collection *b);
 
 Datum

@@ -37,6 +37,24 @@ PG_FUNCTION_INFO_V1(collection_typmodin);
 PG_FUNCTION_INFO_V1(collection_typmodout);
 PG_FUNCTION_INFO_V1(collection_cast);
 
+/* custom wait event values, retrieved from shared memory */
+uint32 collection_we_flatsize;
+uint32 collection_we_flatten;
+uint32 collection_we_expand;
+uint32 collection_we_cast;
+uint32 collection_we_add;
+uint32 collection_we_count;
+uint32 collection_we_find;
+uint32 collection_we_delete;
+uint32 collection_we_sort;
+uint32 collection_we_copy;
+uint32 collection_we_value;
+uint32 collection_we_to_table;
+uint32 collection_we_fetch;
+uint32 collection_we_assign;
+uint32 collection_we_input;
+uint32 collection_we_output;
+
 Datum
 collection_in(PG_FUNCTION_ARGS)
 {
