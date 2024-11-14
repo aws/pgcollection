@@ -13,7 +13,7 @@
  * do everything.
  *
  * Copied from contrib/hstore/hstore_subs.c and modified to suit
- 
+
  * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
@@ -41,7 +41,7 @@ typedef struct CollectionSubWorkspace
 	Oid			value_type;
 	int16		value_type_len;
 	bool		value_byval;
-} CollectionSubWorkspace;
+}			CollectionSubWorkspace;
 
 PG_FUNCTION_INFO_V1(collection_subscript_handler);
 
@@ -53,10 +53,10 @@ PG_FUNCTION_INFO_V1(collection_subscript_handler);
  */
 static void
 collection_subscript_transform(SubscriptingRef *sbsref,
-						   List *indirection,
-						   ParseState *pstate,
-						   bool isSlice,
-						   bool isAssignment)
+							   List *indirection,
+							   ParseState *pstate,
+							   bool isSlice,
+							   bool isAssignment)
 {
 	A_Indices  *ai;
 	Node	   *subexpr;
@@ -110,14 +110,14 @@ collection_subscript_transform(SubscriptingRef *sbsref,
  */
 static void
 collection_subscript_fetch(ExprState *state,
-					   ExprEvalStep *op,
-					   ExprContext *econtext)
+						   ExprEvalStep *op,
+						   ExprContext *econtext)
 {
 	SubscriptingRefState *sbsrefstate = op->d.sbsref.state;
-	CollectionHeader   *colhdr;
-	collection		   *item;
-	char			   *key;
-	Datum				value;
+	CollectionHeader *colhdr;
+	collection *item;
+	char	   *key;
+	Datum		value;
 
 	/* Should not get here if source collection is null */
 	Assert(!(*op->resnull));
@@ -140,7 +140,7 @@ collection_subscript_fetch(ExprState *state,
 
 	if (item == NULL)
 		value = (Datum) 0;
-	else 
+	else
 		value = datumCopy(item->value, colhdr->value_byval, colhdr->value_type_len);
 
 
@@ -164,16 +164,16 @@ collection_subscript_fetch(ExprState *state,
  */
 static void
 collection_subscript_assign(ExprState *state,
-						ExprEvalStep *op,
-						ExprContext *econtext)
+							ExprEvalStep *op,
+							ExprContext *econtext)
 {
 	SubscriptingRefState *sbsrefstate = op->d.sbsref.state;
 	CollectionSubWorkspace *workspace = (CollectionSubWorkspace *) sbsrefstate->workspace;
-	MemoryContext		oldcxt;
-	CollectionHeader   *colhdr;
-	collection		   *item;
-	collection		   *replaced_item;
-	char			   *key;
+	MemoryContext oldcxt;
+	CollectionHeader *colhdr;
+	collection *item;
+	collection *replaced_item;
+	char	   *key;
 
 	/* Check for null subscript */
 	if (sbsrefstate->upperindexnull[0])
@@ -197,7 +197,7 @@ collection_subscript_assign(ExprState *state,
 
 	key = text_to_cstring(DatumGetTextPP(sbsrefstate->upperindex[0]));
 
-	item = (collection *)palloc(sizeof(collection));
+	item = (collection *) palloc(sizeof(collection));
 	item->key = key;
 	item->value = datumCopy(sbsrefstate->replacevalue, workspace->value_byval, workspace->value_type_len);
 
@@ -224,8 +224,8 @@ collection_subscript_assign(ExprState *state,
  */
 static void
 collection_exec_setup(const SubscriptingRef *sbsref,
-				  SubscriptingRefState *sbsrefstate,
-				  SubscriptExecSteps *methods)
+					  SubscriptingRefState *sbsrefstate,
+					  SubscriptExecSteps *methods)
 {
 	CollectionSubWorkspace *workspace;
 

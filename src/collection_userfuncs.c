@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- #include "postgres.h"
+#include "postgres.h"
 
 #include <ctype.h>
 #include <limits.h>
@@ -56,20 +56,20 @@ PG_FUNCTION_INFO_V1(collection_stats_reset);
 
 StatsCounters stats;
 
-static int by_key(const struct collection *a, const struct collection *b);
+static int	by_key(const struct collection *a, const struct collection *b);
 
 Datum
 collection_add(PG_FUNCTION_ARGS)
 {
-	CollectionHeader   *colhdr;
-	MemoryContext		oldcxt;
-	collection		   *item;
-	collection		   *replaced_item;
-	char			   *key;
-	Datum				value;
-	Oid					argtype;
-	int16				argtypelen;
-	bool				argtypebyval;
+	CollectionHeader *colhdr;
+	MemoryContext oldcxt;
+	collection *item;
+	collection *replaced_item;
+	char	   *key;
+	Datum		value;
+	Oid			argtype;
+	int16		argtypelen;
+	bool		argtypebyval;
 
 	if (PG_ARGISNULL(1) || PG_ARGISNULL(2))
 		ereport(ERROR,
@@ -88,7 +88,7 @@ collection_add(PG_FUNCTION_ARGS)
 	argtype = get_fn_expr_argtype(fcinfo->flinfo, 2);
 	get_typlenbyval(argtype, &argtypelen, &argtypebyval);
 
-	item = (collection *)palloc(sizeof(collection));
+	item = (collection *) palloc(sizeof(collection));
 	item->key = key;
 	item->value = datumCopy(value, argtypebyval, argtypelen);
 
@@ -112,8 +112,8 @@ collection_add(PG_FUNCTION_ARGS)
 Datum
 collection_count(PG_FUNCTION_ARGS)
 {
-	Size					count;
-	CollectionHeader   *colhdr;
+	Size		count;
+	CollectionHeader *colhdr;
 
 	colhdr = fetch_collection(fcinfo, 0);
 
@@ -132,11 +132,11 @@ collection_count(PG_FUNCTION_ARGS)
 Datum
 collection_find(PG_FUNCTION_ARGS)
 {
-	char			   *key;
-	Datum				value;
-	collection		   *item;
-	Oid					rettype;
-	CollectionHeader   *colhdr;
+	char	   *key;
+	Datum		value;
+	collection *item;
+	Oid			rettype;
+	CollectionHeader *colhdr;
 
 	if (PG_ARGISNULL(1))
 		PG_RETURN_NULL();
@@ -164,7 +164,7 @@ collection_find(PG_FUNCTION_ARGS)
 	value = datumCopy(item->value, colhdr->value_byval, colhdr->value_type_len);
 
 	get_call_result_type(fcinfo, &rettype, NULL);
-	
+
 	if (!can_coerce_type(1, &rettype, &colhdr->value_type, COERCION_IMPLICIT))
 	{
 		pgstat_report_wait_end();
@@ -182,9 +182,9 @@ collection_find(PG_FUNCTION_ARGS)
 Datum
 collection_delete(PG_FUNCTION_ARGS)
 {
-	char			   *key;
-	collection		   *item;
-	CollectionHeader   *colhdr;
+	char	   *key;
+	collection *item;
+	CollectionHeader *colhdr;
 
 	if (PG_ARGISNULL(1))
 		ereport(ERROR,
@@ -198,16 +198,16 @@ collection_delete(PG_FUNCTION_ARGS)
 	if (colhdr->head)
 	{
 		key = text_to_cstring(PG_GETARG_TEXT_PP(1));
-	
+
 		HASH_FIND(hh, colhdr->head, key, strlen(key), item);
-	
+
 		if (item == NULL)
 		{
 			stats.delete++;
 			pgstat_report_wait_end();
 			PG_RETURN_DATUM(EOHPGetRWDatum(&colhdr->hdr));
 		}
-	
+
 		HASH_DEL(colhdr->head, item);
 		pfree(item);
 	}
@@ -221,7 +221,7 @@ collection_delete(PG_FUNCTION_ARGS)
 Datum
 collection_sort(PG_FUNCTION_ARGS)
 {
-	CollectionHeader   *colhdr;
+	CollectionHeader *colhdr;
 
 	colhdr = fetch_collection(fcinfo, 0);
 
@@ -230,7 +230,7 @@ collection_sort(PG_FUNCTION_ARGS)
 	if (colhdr->current)
 	{
 		HASH_SORT(colhdr->current, by_key);
-	
+
 		colhdr->head = colhdr->current;
 	}
 
@@ -243,8 +243,8 @@ collection_sort(PG_FUNCTION_ARGS)
 Datum
 collection_copy(PG_FUNCTION_ARGS)
 {
-	CollectionHeader   *colhdr;
-	CollectionHeader   *copyhdr;
+	CollectionHeader *colhdr;
+	CollectionHeader *copyhdr;
 
 	colhdr = fetch_collection(fcinfo, 0);
 
@@ -252,10 +252,10 @@ collection_copy(PG_FUNCTION_ARGS)
 
 	if (colhdr->current)
 	{
-		MemoryContext	oldcxt;
-		collection	   *iter;
-		collection	   *item;
-		collection	   *head;
+		MemoryContext oldcxt;
+		collection *iter;
+		collection *item;
+		collection *head;
 
 		copyhdr = construct_empty_collection(CurrentMemoryContext);
 
@@ -275,7 +275,7 @@ collection_copy(PG_FUNCTION_ARGS)
 			memset(key, 0, key_len + 1);
 			strcpy(key, iter->key);
 
-			item = (collection *)palloc(sizeof(collection));
+			item = (collection *) palloc(sizeof(collection));
 			item->key = key;
 			item->value = datumCopy(iter->value, colhdr->value_byval, colhdr->value_type_len);
 
@@ -301,7 +301,7 @@ collection_copy(PG_FUNCTION_ARGS)
 Datum
 collection_key(PG_FUNCTION_ARGS)
 {
-	CollectionHeader   *colhdr;
+	CollectionHeader *colhdr;
 
 	colhdr = fetch_collection(fcinfo, 0);
 
@@ -314,9 +314,9 @@ collection_key(PG_FUNCTION_ARGS)
 Datum
 collection_value(PG_FUNCTION_ARGS)
 {
-	Datum				value;
-	Oid					rettype;
-	CollectionHeader   *colhdr;
+	Datum		value;
+	Oid			rettype;
+	CollectionHeader *colhdr;
 
 	colhdr = fetch_collection(fcinfo, 0);
 
@@ -345,7 +345,7 @@ collection_value(PG_FUNCTION_ARGS)
 Datum
 collection_isnull(PG_FUNCTION_ARGS)
 {
-	CollectionHeader   *colhdr;
+	CollectionHeader *colhdr;
 
 	colhdr = fetch_collection(fcinfo, 0);
 
@@ -358,7 +358,7 @@ collection_isnull(PG_FUNCTION_ARGS)
 Datum
 collection_next(PG_FUNCTION_ARGS)
 {
-	CollectionHeader   *colhdr;
+	CollectionHeader *colhdr;
 
 	colhdr = fetch_collection(fcinfo, 0);
 
@@ -371,7 +371,7 @@ collection_next(PG_FUNCTION_ARGS)
 Datum
 collection_prev(PG_FUNCTION_ARGS)
 {
-	CollectionHeader   *colhdr;
+	CollectionHeader *colhdr;
 
 	colhdr = fetch_collection(fcinfo, 0);
 
@@ -384,7 +384,7 @@ collection_prev(PG_FUNCTION_ARGS)
 Datum
 collection_first(PG_FUNCTION_ARGS)
 {
-	CollectionHeader   *colhdr;
+	CollectionHeader *colhdr;
 
 	colhdr = fetch_collection(fcinfo, 0);
 	colhdr->current = colhdr->head;
@@ -398,12 +398,12 @@ collection_keys_to_table(PG_FUNCTION_ARGS)
 	typedef struct
 	{
 		collection *cur;
-	} to_table_fctx;
-	
-	FuncCallContext	   *funcctx;
-	to_table_fctx	   *fctx;
-	CollectionHeader   *colhdr;
-	MemoryContext		oldcontext;
+	}			to_table_fctx;
+
+	FuncCallContext *funcctx;
+	to_table_fctx *fctx;
+	CollectionHeader *colhdr;
+	MemoryContext oldcontext;
 
 	/* stuff done only on the first call of the function */
 	if (SRF_IS_FIRSTCALL())
@@ -426,7 +426,7 @@ collection_keys_to_table(PG_FUNCTION_ARGS)
 
 	if (fctx->cur != NULL)
 	{
-		Datum  		value = CStringGetTextDatum(fctx->cur->key);
+		Datum		value = CStringGetTextDatum(fctx->cur->key);
 
 		fctx->cur = fctx->cur->hh.next;
 
@@ -448,13 +448,13 @@ collection_values_to_table(PG_FUNCTION_ARGS)
 		collection *cur;
 		int16		typelen;
 		bool		typebyval;
-	} to_table_fctx;
-	
-	FuncCallContext	   *funcctx;
-	to_table_fctx	   *fctx;
-	CollectionHeader   *colhdr;
-	MemoryContext		oldcontext;
-	Oid					rettype;
+	}			to_table_fctx;
+
+	FuncCallContext *funcctx;
+	to_table_fctx *fctx;
+	CollectionHeader *colhdr;
+	MemoryContext oldcontext;
+	Oid			rettype;
 
 	/* stuff done only on the first call of the function */
 	if (SRF_IS_FIRSTCALL())
@@ -488,7 +488,7 @@ collection_values_to_table(PG_FUNCTION_ARGS)
 
 	if (fctx->cur != NULL)
 	{
-		Datum value = datumCopy(fctx->cur->value, fctx->typebyval, fctx->typelen);
+		Datum		value = datumCopy(fctx->cur->value, fctx->typebyval, fctx->typelen);
 
 		fctx->cur = fctx->cur->hh.next;
 
@@ -511,14 +511,14 @@ collection_to_table(PG_FUNCTION_ARGS)
 		int16		typelen;
 		bool		typebyval;
 		TupleDesc	tupdesc;
-	} to_table_fctx;
-	
-	FuncCallContext	   *funcctx;
-	to_table_fctx	   *fctx;
-	CollectionHeader   *colhdr;
-	MemoryContext		oldcontext;
-	Oid					rettype;
-	ReturnSetInfo	   *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
+	}			to_table_fctx;
+
+	FuncCallContext *funcctx;
+	to_table_fctx *fctx;
+	CollectionHeader *colhdr;
+	MemoryContext oldcontext;
+	Oid			rettype;
+	ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
 
 	/* stuff done only on the first call of the function */
 	if (SRF_IS_FIRSTCALL())
@@ -548,7 +548,7 @@ collection_to_table(PG_FUNCTION_ARGS)
 			ereport(ERROR,
 					(errcode(ERRCODE_DATATYPE_MISMATCH),
 					 errmsg("Return record must have 2 attributes")));
-		
+
 		rettype = TupleDescAttr(rsinfo->expectedDesc, 1)->atttypid;
 
 		if (!can_coerce_type(1, &rettype, &colhdr->value_type, COERCION_IMPLICIT))
@@ -579,7 +579,7 @@ collection_to_table(PG_FUNCTION_ARGS)
 
 		fctx->cur = fctx->cur->hh.next;
 
-		SRF_RETURN_NEXT(funcctx, HeapTupleGetDatum(tuple));		
+		SRF_RETURN_NEXT(funcctx, HeapTupleGetDatum(tuple));
 	}
 	else
 	{
@@ -592,11 +592,11 @@ collection_to_table(PG_FUNCTION_ARGS)
 Datum
 collection_stats(PG_FUNCTION_ARGS)
 {
-	Datum			result;
-	TupleDesc		tupleDesc;
-	char		   *values[5];
-	int				j;
-	HeapTuple		tuple;
+	Datum		result;
+	TupleDesc	tupleDesc;
+	char	   *values[5];
+	int			j;
+	HeapTuple	tuple;
 
 	if (get_call_result_type(fcinfo, NULL, &tupleDesc) != TYPEFUNC_COMPOSITE)
 		elog(ERROR, "return type must be a row type");
@@ -609,7 +609,7 @@ collection_stats(PG_FUNCTION_ARGS)
 	values[j++] = psprintf(INT64_FORMAT, (int64) stats.sort);
 
 	tuple = BuildTupleFromCStrings(TupleDescGetAttInMetadata(tupleDesc),
-																values);
+								   values);
 
 	result = HeapTupleGetDatum(tuple);
 	PG_RETURN_DATUM(result);
@@ -627,7 +627,8 @@ collection_stats_reset(PG_FUNCTION_ARGS)
 	PG_RETURN_VOID();
 }
 
-static int 
-by_key(const struct collection *a, const struct collection *b) {
+static int
+by_key(const struct collection *a, const struct collection *b)
+{
 	return varstr_cmp(a->key, strlen(a->key), b->key, strlen(b->key), DEFAULT_COLLATION_OID);
 }

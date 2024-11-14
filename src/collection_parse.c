@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- #include "postgres.h"
+#include "postgres.h"
 
 #include "catalog/pg_type_d.h"
 #include "common/jsonapi.h"
@@ -33,7 +33,7 @@ typedef enum
 	EXPECT_VALUE_TYPE,
 	EXPECT_ENTRIES,
 	EXPECT_EOF,
-} JsonCollectionSemanticState;
+}			JsonCollectionSemanticState;
 
 struct JsonCollectionParseContext;
 typedef struct JsonCollectionParseContext JsonCollectionParseContext;
@@ -52,22 +52,22 @@ typedef struct
 	char	   *typname;
 	List	   *keys;
 	List	   *values;
-} JsonCollectionParseState;
+}			JsonCollectionParseState;
 
 static JsonParseErrorType json_collection_object_start(void *state);
 static JsonParseErrorType json_collection_object_end(void *state);
 static JsonParseErrorType json_collection_array_start(void *state);
-static JsonParseErrorType json_collection_object_field_start(void *state, 
-															 char *fname, 
+static JsonParseErrorType json_collection_object_field_start(void *state,
+															 char *fname,
 															 bool isnull);
-static JsonParseErrorType json_collection_scalar(void *state, 
-												 char *token, 
+static JsonParseErrorType json_collection_scalar(void *state,
+												 char *token,
 												 JsonTokenType tokentype);
 
 CollectionHeader *
 parse_collection(char *json)
 {
-	CollectionHeader   *colhdr;
+	CollectionHeader *colhdr;
 	ListCell   *lc1;
 	ListCell   *lc2;
 	Oid			typInput;
@@ -94,7 +94,7 @@ parse_collection(char *json)
 
 	/* Set up semantic actions. */
 	sem.semstate = &parse;
-	
+
 #if (PG_VERSION_NUM >= 160000)
 	sem.object_start = json_collection_object_start;
 	sem.object_end = json_collection_object_end;
@@ -109,7 +109,7 @@ parse_collection(char *json)
 	sem.object_field_start = (void *) json_collection_object_field_start;
 	sem.scalar = (void *) json_collection_scalar;
 #endif
-	sem.array_end = NULL; 
+	sem.array_end = NULL;
 	sem.object_field_end = NULL;
 	sem.array_element_start = NULL;
 	sem.array_element_end = NULL;
@@ -123,11 +123,14 @@ parse_collection(char *json)
 
 	if (parse.typname)
 	{
-		Oid		typid;
+		Oid			typid;
+
 		typid = DatumGetObjectId(DirectFunctionCall1(regtypein, CStringGetDatum(parse.typname)));
 		colhdr->value_type = typid;
 		colhdr->value_type_len = get_typlen(typid);
-	} else {
+	}
+	else
+	{
 		colhdr->value_type = TEXTOID;
 		colhdr->value_type_len = -1;
 	}
@@ -141,7 +144,7 @@ parse_collection(char *json)
 		char	   *vstr = lfirst(lc2);
 		Datum		value;
 
-		item = (collection *)palloc(sizeof(collection));
+		item = (collection *) palloc(sizeof(collection));
 
 		item->key = key;
 
@@ -172,7 +175,7 @@ json_collection_object_start(void *state)
 
 		case EXPECT_ENTRIES:
 			break;
-			
+
 		default:
 			elog(ERROR, "unexpected object start");
 			break;
@@ -209,7 +212,7 @@ json_collection_array_start(void *state)
 {
 	/* Arrays should not exist in a collection json doc */
 	elog(ERROR, "Invalid collection format");
-	
+
 	return JSON_INVALID_TOKEN;
 }
 
@@ -217,7 +220,7 @@ static JsonParseErrorType
 json_collection_object_field_start(void *state, char *fname, bool isnull)
 {
 	JsonCollectionParseState *parse = state;
-	char	*key;
+	char	   *key;
 
 	switch (parse->state)
 	{

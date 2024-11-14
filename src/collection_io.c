@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- #include "postgres.h"
+#include "postgres.h"
 
 #include <ctype.h>
 #include <limits.h>
@@ -38,28 +38,28 @@ PG_FUNCTION_INFO_V1(collection_typmodout);
 PG_FUNCTION_INFO_V1(collection_cast);
 
 /* custom wait event values, retrieved from shared memory */
-uint32 collection_we_flatsize;
-uint32 collection_we_flatten;
-uint32 collection_we_expand;
-uint32 collection_we_cast;
-uint32 collection_we_add;
-uint32 collection_we_count;
-uint32 collection_we_find;
-uint32 collection_we_delete;
-uint32 collection_we_sort;
-uint32 collection_we_copy;
-uint32 collection_we_value;
-uint32 collection_we_to_table;
-uint32 collection_we_fetch;
-uint32 collection_we_assign;
-uint32 collection_we_input;
-uint32 collection_we_output;
+uint32		collection_we_flatsize;
+uint32		collection_we_flatten;
+uint32		collection_we_expand;
+uint32		collection_we_cast;
+uint32		collection_we_add;
+uint32		collection_we_count;
+uint32		collection_we_find;
+uint32		collection_we_delete;
+uint32		collection_we_sort;
+uint32		collection_we_copy;
+uint32		collection_we_value;
+uint32		collection_we_to_table;
+uint32		collection_we_fetch;
+uint32		collection_we_assign;
+uint32		collection_we_input;
+uint32		collection_we_output;
 
 Datum
 collection_in(PG_FUNCTION_ARGS)
 {
 	char	   *json = PG_GETARG_CSTRING(0);
-	CollectionHeader   *colhdr;
+	CollectionHeader *colhdr;
 
 	pgstat_report_wait_start(collection_we_input);
 
@@ -73,16 +73,16 @@ collection_in(PG_FUNCTION_ARGS)
 Datum
 collection_out(PG_FUNCTION_ARGS)
 {
-	CollectionHeader   *colhdr;
-	collection		   *cur;
-	Oid					outfuncoid;
-	bool				typisvarlena;
-	int					count;
-	char			   *key;
-	char			   *value;
-	char			   *value_type;
-	StringInfoData		tmp,
-						dst;
+	CollectionHeader *colhdr;
+	collection *cur;
+	Oid			outfuncoid;
+	bool		typisvarlena;
+	int			count;
+	char	   *key;
+	char	   *value;
+	char	   *value_type;
+	StringInfoData tmp,
+				dst;
 
 	pgstat_report_wait_start(collection_we_output);
 
@@ -122,7 +122,7 @@ collection_out(PG_FUNCTION_ARGS)
 
 		if (cur->hh.next != NULL)
 			appendStringInfoString(&dst, ", ");
-	}	
+	}
 
 	appendStringInfoString(&dst, "}}");
 
@@ -172,8 +172,8 @@ collection_typmodin(PG_FUNCTION_ARGS)
 Datum
 collection_typmodout(PG_FUNCTION_ARGS)
 {
-	Oid		typmod = PG_GETARG_OID(0);
-	char   *res = (char *) palloc(NAMEDATALEN);
+	Oid			typmod = PG_GETARG_OID(0);
+	char	   *res = (char *) palloc(NAMEDATALEN);
 
 	res = DatumGetCString(DirectFunctionCall1(regtypeout, typmod));
 
@@ -183,8 +183,8 @@ collection_typmodout(PG_FUNCTION_ARGS)
 Datum
 collection_cast(PG_FUNCTION_ARGS)
 {
-	CollectionHeader   *colhdr;
-	int32				typmod = PG_GETARG_INT32(1);
+	CollectionHeader *colhdr;
+	int32		typmod = PG_GETARG_INT32(1);
 
 	colhdr = fetch_collection(fcinfo, 0);
 
@@ -192,15 +192,15 @@ collection_cast(PG_FUNCTION_ARGS)
 
 	if (typmod > 0 && colhdr->value_type != InvalidOid)
 	{
-		Oid		value_type = typmod;
-		
+		Oid			value_type = typmod;
+
 		if (colhdr->value_type != value_type)
-				ereport(ERROR,
-						(errcode(ERRCODE_DATATYPE_MISMATCH),
-						 errmsg("Incompatible value data type"),
-						 errdetail("Expecting %s, but received %s", 
-						   format_type_extended(value_type, -1, 0), 
-						   format_type_extended(colhdr->value_type, -1, 0))));
+			ereport(ERROR,
+					(errcode(ERRCODE_DATATYPE_MISMATCH),
+					 errmsg("Incompatible value data type"),
+					 errdetail("Expecting %s, but received %s",
+							   format_type_extended(value_type, -1, 0),
+							   format_type_extended(colhdr->value_type, -1, 0))));
 
 	}
 
@@ -208,4 +208,3 @@ collection_cast(PG_FUNCTION_ARGS)
 
 	PG_RETURN_DATUM(EOHPGetRWDatum(&colhdr->hdr));
 }
-

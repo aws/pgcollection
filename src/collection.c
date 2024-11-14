@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- #include "postgres.h"
+#include "postgres.h"
 
 #include <ctype.h>
 #include <limits.h>
@@ -74,17 +74,17 @@ _PG_init(void)
 	collection_we_to_table = PG_WAIT_EXTENSION;
 	collection_we_fetch = PG_WAIT_EXTENSION;
 	collection_we_assign = PG_WAIT_EXTENSION;
-	collection_we_input =PG_WAIT_EXTENSION;
-	collection_we_output =PG_WAIT_EXTENSION;
+	collection_we_input = PG_WAIT_EXTENSION;
+	collection_we_output = PG_WAIT_EXTENSION;
 #endif
 }
 
 Size
 collection_get_flat_size(ExpandedObjectHeader *eohptr)
 {
-	CollectionHeader   *colhdr = (CollectionHeader *) eohptr;
-	collection		   *cur;
-	size_t				sz = 0;
+	CollectionHeader *colhdr = (CollectionHeader *) eohptr;
+	collection *cur;
+	size_t		sz = 0;
 
 	Assert(colhdr->collection_magic == COLLECTION_MAGIC);
 
@@ -93,14 +93,16 @@ collection_get_flat_size(ExpandedObjectHeader *eohptr)
 
 	pgstat_report_wait_start(collection_we_flatsize);
 
-	for (cur = colhdr->head; cur != NULL; cur = cur->hh.next) {
+	for (cur = colhdr->head; cur != NULL; cur = cur->hh.next)
+	{
 		sz += strlen(cur->key);
-		
+
 		if (colhdr->value_type_len != -1)
 			sz += colhdr->value_type_len;
 		else
 		{
 			struct varlena *s = (struct varlena *) DatumGetPointer(cur->value);
+
 			sz += (Size) VARSIZE_ANY(s);
 		}
 		sz += sizeof(int16);
@@ -117,12 +119,12 @@ collection_get_flat_size(ExpandedObjectHeader *eohptr)
 
 void
 collection_flatten_into(ExpandedObjectHeader *eohptr,
-				void *result, Size allocated_size)
+						void *result, Size allocated_size)
 {
-	CollectionHeader   *colhdr = (CollectionHeader *) eohptr;
+	CollectionHeader *colhdr = (CollectionHeader *) eohptr;
 	FlatCollectionType *cresult = (FlatCollectionType *) result;
-	collection		   *cur;
-	int					location = 0;
+	collection *cur;
+	int			location = 0;
 
 	Assert(allocated_size == colhdr->flat_size);
 
@@ -150,23 +152,24 @@ collection_flatten_into(ExpandedObjectHeader *eohptr,
 		else
 		{
 			struct varlena *s = (struct varlena *) DatumGetPointer(cur->value);
+
 			value_len = (size_t) VARSIZE_ANY(s);
 			is_varlena = true;
 		}
 
-		memcpy(cresult->values + location, (char*)&key_len, sizeof(key_len));
+		memcpy(cresult->values + location, (char *) &key_len, sizeof(key_len));
 		location += sizeof(key_len);
 
-		memcpy(cresult->values + location, (char*)&value_len, sizeof(value_len));
+		memcpy(cresult->values + location, (char *) &value_len, sizeof(value_len));
 		location += sizeof(value_len);
 
 		memcpy(cresult->values + location, cur->key, key_len);
 		location += key_len;
 
 		if (is_varlena)
-			memcpy((char *)cresult->values + location, (char *)cur->value, value_len);
+			memcpy((char *) cresult->values + location, (char *) cur->value, value_len);
 		else
-			memcpy((char *)cresult->values + location, (char *)&cur->value, value_len);
+			memcpy((char *) cresult->values + location, (char *) &cur->value, value_len);
 
 		location += value_len;
 	}
@@ -210,24 +213,24 @@ construct_empty_collection(MemoryContext parentcontext)
 	colhdr->current = NULL;
 	colhdr->head = NULL;
 
-return colhdr;
+	return colhdr;
 }
 
 CollectionHeader *
 DatumGetExpandedCollection(Datum d)
 {
-	CollectionHeader   *colhdr;
+	CollectionHeader *colhdr;
 	FlatCollectionType *fc;
-	MemoryContext		oldcxt;
-	int					location = 0;
-	int					i = 0;
+	MemoryContext oldcxt;
+	int			location = 0;
+	int			i = 0;
 
 	if (VARATT_IS_EXTERNAL_EXPANDED(DatumGetPointer(d)))
 	{
 		colhdr = (CollectionHeader *) DatumGetEOHP(d);
-	
+
 		Assert(colhdr->collection_magic == COLLECTION_MAGIC);
-	
+
 		return colhdr;
 	}
 
@@ -254,30 +257,30 @@ DatumGetExpandedCollection(Datum d)
 		Datum	   *value;
 		collection *item;
 
-		memcpy((unsigned char *)&key_len, fc->values + location, sizeof(int16));
+		memcpy((unsigned char *) &key_len, fc->values + location, sizeof(int16));
 		location += sizeof(int16);
 
-		memcpy((unsigned char *)&value_len, fc->values + location, sizeof(size_t));
+		memcpy((unsigned char *) &value_len, fc->values + location, sizeof(size_t));
 		location += sizeof(size_t);
 
-		item = (collection *)palloc(sizeof(collection));
+		item = (collection *) palloc(sizeof(collection));
 
 
-		key = (char *)palloc(key_len + 1);
+		key = (char *) palloc(key_len + 1);
 		memcpy(key, fc->values + location, key_len);
 		key[key_len] = '\0';
 		location += key_len;
 
-		value = (Datum *)palloc(value_len);
-		memcpy((unsigned char *)value, fc->values + location, value_len);
+		value = (Datum *) palloc(value_len);
+		memcpy((unsigned char *) value, fc->values + location, value_len);
 		location += value_len;
 
 		item->key = key;
 
 		if (colhdr->value_type_len != -1)
-			item->value = datumCopy((Datum)*value, colhdr->value_byval, value_len);
+			item->value = datumCopy((Datum) *value, colhdr->value_byval, value_len);
 		else
-			item->value = datumCopy((Datum)value, colhdr->value_byval, value_len);
+			item->value = datumCopy((Datum) value, colhdr->value_byval, value_len);
 
 
 		HASH_ADD(hh, colhdr->current, key[0], strlen(key), item);
@@ -294,4 +297,3 @@ DatumGetExpandedCollection(Datum d)
 
 	return colhdr;
 }
-

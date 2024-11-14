@@ -37,13 +37,14 @@
 #define uthash_free(ptr,sz) pfree(ptr)
 #define uthash_nonfatal_oom(e) do{elog(ERROR, "Unable to allocate memory");}while(0)
 
-#define COLLECTION_MAGIC 8675309		/* ID for debugging crosschecks */
+#define COLLECTION_MAGIC 8675309	/* ID for debugging crosschecks */
 
-typedef struct collection {
-	char		   *key;
-	Datum			value;
-	UT_hash_handle	hh;
-} collection;
+typedef struct collection
+{
+	char	   *key;
+	Datum		value;
+	UT_hash_handle hh;
+}			collection;
 
 typedef struct CollectionHeader
 {
@@ -51,22 +52,22 @@ typedef struct CollectionHeader
 	ExpandedObjectHeader hdr;
 
 	/* Magic value identifying an expanded array (for debugging only) */
-	int				collection_magic;
+	int			collection_magic;
 
-	Oid				value_type;	/* value type OID */
-	int16			value_type_len;
-	bool			value_byval;
+	Oid			value_type;		/* value type OID */
+	int16		value_type_len;
+	bool		value_byval;
 
 	/*
 	 * flat_size is the current space requirement for the flat equivalent of
 	 * the expanded array, if known; otherwise it's 0.  We store this to make
 	 * consecutive calls of get_flat_size cheap.
 	 */
-	size_t			flat_size;
+	size_t		flat_size;
 
-	collection	   *current;
-	collection	   *head;
-} CollectionHeader;
+	collection *current;
+	collection *head;
+}			CollectionHeader;
 
 typedef struct FlatCollectionType
 {
@@ -74,7 +75,7 @@ typedef struct FlatCollectionType
 	int32		num_entries;
 	Oid			value_type;
 	char		values[];
-} FlatCollectionType;
+}			FlatCollectionType;
 
 typedef struct StatsCounters
 {
@@ -83,19 +84,19 @@ typedef struct StatsCounters
 	int64		delete;
 	int64		find;
 	int64		sort;
-} StatsCounters;
+}			StatsCounters;
 
 extern StatsCounters stats;
 
-extern CollectionHeader *parse_collection(char *json);
-extern CollectionHeader *fetch_collection(FunctionCallInfo fcinfo, int argno);
-extern CollectionHeader *construct_empty_collection(MemoryContext parentcontext);
+extern CollectionHeader * parse_collection(char *json);
+extern CollectionHeader * fetch_collection(FunctionCallInfo fcinfo, int argno);
+extern CollectionHeader * construct_empty_collection(MemoryContext parentcontext);
 CollectionHeader *DatumGetExpandedCollection(Datum d);
 
 /* "Methods" required for an expanded object */
-Size collection_get_flat_size(ExpandedObjectHeader *eohptr);
-void collection_flatten_into(ExpandedObjectHeader *eohptr,
-							void *result, Size allocated_size);
+Size		collection_get_flat_size(ExpandedObjectHeader *eohptr);
+void		collection_flatten_into(ExpandedObjectHeader *eohptr,
+									void *result, Size allocated_size);
 
 /* custom wait event values, retrieved from shared memory */
 extern uint32 collection_we_flatsize;
