@@ -1,0 +1,81 @@
+name: pgcollection CI
+on:
+  schedule:
+    # Runs every day at 4am.
+    - cron: '0 4 * * *'
+  push:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  test:
+    defaults:
+      run:
+        shell: sh
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        version: [master, REL_17_STABLE, REL_16_STABLE, REL_15_STABLE, REL_14_STABLE]
+
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout pgcollection
+        uses: actions/checkout@v4
+        with:
+          path: pgcollection
+
+      - name: Checkout Postgres
+        run: |
+          sudo apt-get -y -q update
+          sudo apt-get -y -q install libperl-dev libipc-run-perl bison flex
+          git clone --branch ${{ matrix.version }} https://github.com/postgres/postgres.git
+
+      - name: Build Postgres
+        run: |
+          cd postgres
+          sh configure --prefix=$PWD/inst/ --enable-debug --enable-cassert --enable-tap-tests --with-openssl --with-perl CFLAGS="-ggdb3 -O0"
+          make -j4 install
+
+          # Install extensions
+          make -C contrib install
+
+      - if: ${{ matrix.version == 'master' }}
+        name: Check pgcollection code indentation (master only)
+        run: |
+          cd postgres
+          make -C src/tools/pg_bsd_indent/ -j4 install
+          src/tools/pgindent/pgindent --indent=$GITHUB_WORKSPACE/postgres/src/tools/pg_bsd_indent/pg_bsd_indent --diff $GITHUB_WORKSPACE/pg_tle > pgindent.diffs
+          test -s pgindent.diffs && cat pgindent.diffs && exit 1 || exit 0
+
+      - name: Build pgcollection
+        run: |
+          cd pgcollection
+          export PATH=$GITHUB_WORKSPACE/postgres/inst/bin:"$PATH"
+          make PROFILE="-Wall -Wmissing-prototypes -Werror=maybe-uninitialized -Werror" -j4 all install
+
+      - name: Run pgcollection tests
+        run: |
+          export PATH=$GITHUB_WORKSPACE/postgres/inst/bin:"$PATH"
+          postgres/inst/bin/initdb -D postgres/inst/bin/data
+          postgres/inst/bin/pg_ctl -D postgres/inst/bin/data -l postgres/inst/bin/logfile start
+          cd pgcollection
+          PERL5LIB="postgres/src/test/perl:${PERL5LIB}" make installcheck
+
+      - name: Show pgcollection core tests diff
+        if: ${{ failure() }}
+        run: |
+          cat pgcollection/test/regression.diffs
+
+      - name: Upload test artifacts
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-artifact-${{ matrix.os }}-${{ matrix.version }}
+          path: |
+            postgres/pgindent.diffs
+            pgcollection/test/regression.diffs
+            pgcollection/tmp_check/log
+          retention-days: 1
