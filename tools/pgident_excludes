@@ -1,0 +1,3 @@
+# List of filename patterns to exclude from pgindent runs
+#
+include/uthash/uthash.h
