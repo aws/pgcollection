@@ -270,7 +270,7 @@ collection_subscript_handler(PG_FUNCTION_ARGS)
 	static const SubscriptRoutines sbsroutines = {
 		.transform = collection_subscript_transform,
 		.exec_setup = collection_exec_setup,
-		.fetch_strict = false,	/* fetch returns NULL for NULL inputs */
+		.fetch_strict = true,	/* fetch returns NULL for NULL inputs */
 		.fetch_leakproof = true,	/* fetch returns NULL for bad subscript */
 		.store_leakproof = false	/* ... but assignment throws error */
 	};

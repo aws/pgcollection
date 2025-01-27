@@ -119,7 +119,7 @@ DO $$
 DECLARE
   u   collection('text');
 BEGIN
-  RAISE NOTICE 'Test 10';
+  RAISE NOTICE 'Subscript test 10';
   u := add(u, 'x1', 'Hello World'::text);
   u := add(u, 'y3', '12-31-1999'::date);
   RAISE NOTICE 'count: %', count(u);
@@ -133,7 +133,7 @@ DECLARE
   child1    collection('text');
   child2    collection('text');
 BEGIN
-  RAISE NOTICE 'Test 11';
+  RAISE NOTICE 'Subscript test 11';
 
   child1['aaa'] := 'Hello World';
   child1['bbb'] := 'Hello All';
@@ -145,5 +145,16 @@ BEGIN
   parent['child2'] := child2;
 
   RAISE NOTICE 'Parent: %', parent;
+END
+$$;
+
+DO
+$$
+DECLARE
+t collection;
+BEGIN
+  RAISE NOTICE 'Subscript test 12';
+
+  RAISE NOTICE 'The current val is %', t['2'];
 END
 $$;
