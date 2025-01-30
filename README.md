@@ -83,6 +83,7 @@ CREATE EXTENSION collection;
 | values_to_table(collection, anyelement) | SETOF anyelement        | Returns all of the values as anyelement in the collection                                  |
 | to_table(collection)                    | TABLE(text, text)       | Returns all of the keys and values as text in the collection                               |
 | to_table(collection, anyelement)        | TABLE(text, anyelement) | Returns all of the keys and values as anyelement in the collection                         |
+| value_type(collection)                  | regtype                 | Returns the data type of the elements within the collection                                |
 
 ## Using Subscripts
 
@@ -125,7 +126,9 @@ The default type of a collection's element is `text`, however it can contain
 any valid PostgreSQL type. The type can be set in two ways. The first is by
 explicitly setting it as the type modifier when declaring the collection. If
 no type modifier is defined, the type of the first element added to the 
-collection will define the type of the collection.
+collection using the `add` function will define the type of the collection.
+If no type modifier is set, any subscript assignments or fetches will be cast
+to type `text`.
 
 ```sql
 DO 

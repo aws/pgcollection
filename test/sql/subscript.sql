@@ -158,3 +158,30 @@ BEGIN
   RAISE NOTICE 'The current val is %', t['2'];
 END
 $$;
+
+DO
+$$
+DECLARE
+  t  collection;
+BEGIN
+  RAISE NOTICE 'Subscript test 13';
+
+  t['1'] := 111::bigint;
+  t['2'] := 222::bigint;
+  RAISE NOTICE 'The type is %', value_type(t);
+END
+$$;
+
+
+DO
+$$
+DECLARE
+  t  collection;
+BEGIN
+  RAISE NOTICE 'Subscript test 14';
+
+  t := add(t, '1', 111::bigint);
+  t['2'] := 'abc';
+END
+$$;
+

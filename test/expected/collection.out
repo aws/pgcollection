@@ -396,3 +396,44 @@ SELECT * FROM collections_test ORDER BY c1;
 (2 rows)
 
 DROP TABLE collections_test;
+DO
+$$
+DECLARE
+  t  collection;
+BEGIN
+  RAISE NOTICE 'Test 23';
+  t := add(t, '1', 111::bigint);
+  t := add(t, '2', 222::bigint);
+  RAISE NOTICE 'The current val is %', value(t, null::bigint);
+  RAISE NOTICE 'The current value type is %', pg_typeof(value(t, null::bigint));
+END
+$$;
+NOTICE:  Test 23
+NOTICE:  The current val is 111
+NOTICE:  The current value type is bigint
+DO
+$$
+DECLARE
+  t  collection;
+BEGIN
+  RAISE NOTICE 'Test 24';
+  t := add(t, '1', 111::bigint);
+  t := add(t, '2', 'hello'::text);
+END
+$$;
+NOTICE:  Test 24
+ERROR:  incompatible value data type
+DETAIL:  expecting bigint, but received text
+CONTEXT:  PL/pgSQL function inline_code_block line 7 at assignment
+DO
+$$
+DECLARE
+  t  collection;
+BEGIN
+  RAISE NOTICE 'Test 25';
+  t := add(t, '1', 111::bigint);
+  RAISE NOTICE 'The type is %', value_type(t);
+END
+$$;
+NOTICE:  Test 25
+NOTICE:  The type is bigint

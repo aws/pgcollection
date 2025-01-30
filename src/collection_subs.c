@@ -97,8 +97,6 @@ collection_subscript_transform(SubscriptingRef *sbsref,
 		sbsref->refrestype = TEXTOID;
 	else
 		sbsref->refrestype = sbsref->reftypmod;
-
-	sbsref->reftypmod = -1;
 }
 
 /*
@@ -114,6 +112,7 @@ collection_subscript_fetch(ExprState *state,
 						   ExprContext *econtext)
 {
 	SubscriptingRefState *sbsrefstate = op->d.sbsref.state;
+	CollectionSubWorkspace *workspace = (CollectionSubWorkspace *) sbsrefstate->workspace;
 	CollectionHeader *colhdr;
 	collection *item;
 	char	   *key;
@@ -141,8 +140,30 @@ collection_subscript_fetch(ExprState *state,
 	if (item == NULL)
 		value = (Datum) 0;
 	else
-		value = datumCopy(item->value, colhdr->value_byval, colhdr->value_type_len);
+	{
+		if (can_coerce_type(1, &workspace->value_type, &colhdr->value_type, COERCION_IMPLICIT))
+			value = datumCopy(item->value, colhdr->value_byval, colhdr->value_type_len);
+		else
+		{
+			if (workspace->value_type == TEXTOID)
+			{
+				bool		typisvarlena;
+				Oid			outfuncoid;
 
+				getTypeOutputInfo(colhdr->value_type, &outfuncoid, &typisvarlena);
+				value = CStringGetTextDatum(DatumGetCString(OidFunctionCall1(outfuncoid, item->value)));
+			}
+			else
+			{
+				ereport(ERROR,
+						(errcode(ERRCODE_DATATYPE_MISMATCH),
+						 errmsg("Incompatible value data type"),
+						 errdetail("Expecting %s, but received %s",
+								   format_type_extended(workspace->value_type, -1, 0),
+								   format_type_extended(colhdr->value_type, -1, 0))));
+			}
+		}
+	}
 
 	if (value == (Datum) 0)
 		*op->resnull = true;
@@ -185,6 +206,10 @@ collection_subscript_assign(ExprState *state,
 	{
 		colhdr = construct_empty_collection(CurrentMemoryContext);
 		*op->resnull = false;
+
+		colhdr->value_type = workspace->value_type;
+		colhdr->value_type_len = workspace->value_type_len;
+		colhdr->value_byval = workspace->value_byval;
 	}
 	else
 	{
@@ -192,6 +217,17 @@ collection_subscript_assign(ExprState *state,
 	}
 
 	pgstat_report_wait_start(collection_we_assign);
+
+	if (!can_coerce_type(1, &workspace->value_type, &colhdr->value_type, COERCION_IMPLICIT))
+	{
+		pgstat_report_wait_end();
+		ereport(ERROR,
+				(errcode(ERRCODE_DATATYPE_MISMATCH),
+				 errmsg("incompatible value data type"),
+				 errdetail("expecting %s, but received %s",
+						   format_type_extended(colhdr->value_type, -1, 0),
+						   format_type_extended(workspace->value_type, -1, 0))));
+	}
 
 	oldcxt = MemoryContextSwitchTo(colhdr->hdr.eoh_context);
 
@@ -202,10 +238,6 @@ collection_subscript_assign(ExprState *state,
 	item->value = datumCopy(sbsrefstate->replacevalue, workspace->value_byval, workspace->value_type_len);
 
 	HASH_REPLACE(hh, colhdr->current, key[0], strlen(key), item, replaced_item);
-
-	colhdr->value_type = workspace->value_type;
-	colhdr->value_type_len = workspace->value_type_len;
-	colhdr->value_byval = workspace->value_byval;
 
 	if (colhdr->head == NULL)
 		colhdr->head = colhdr->current;
@@ -240,7 +272,7 @@ collection_exec_setup(const SubscriptingRef *sbsref,
 	workspace = (CollectionSubWorkspace *) palloc(sizeof(CollectionSubWorkspace));
 	sbsrefstate->workspace = workspace;
 
-	/* Default to storing text unless the typmod is set */
+	/* Default to fetching as text unless the typmod is set */
 	if (sbsref->reftypmod == -1)
 	{
 		workspace->value_type = TEXTOID;

@@ -20,6 +20,7 @@
 
 #include "catalog/pg_type.h"
 #include "common/jsonapi.h"
+#include "parser/parse_coerce.h"
 #include "pgstat.h"
 #include "utils/builtins.h"
 #include "utils/datum.h"
@@ -184,7 +185,7 @@ Datum
 collection_cast(PG_FUNCTION_ARGS)
 {
 	CollectionHeader *colhdr;
-	int32		typmod = PG_GETARG_INT32(1);
+	Oid			typmod = PG_GETARG_INT32(1);
 
 	colhdr = fetch_collection(fcinfo, 0);
 
@@ -192,16 +193,18 @@ collection_cast(PG_FUNCTION_ARGS)
 
 	if (typmod > 0 && colhdr->value_type != InvalidOid)
 	{
-		Oid			value_type = typmod;
-
-		if (colhdr->value_type != value_type)
+		/*
+		 * Check if the cast is into a collection or if it can be coerced to
+		 * the appropriate type
+		 */
+		if (get_fn_expr_argtype(fcinfo->flinfo, 0) != typmod &&
+			!can_coerce_type(1, &colhdr->value_type, &typmod, COERCION_IMPLICIT))
 			ereport(ERROR,
 					(errcode(ERRCODE_DATATYPE_MISMATCH),
 					 errmsg("Incompatible value data type"),
 					 errdetail("Expecting %s, but received %s",
-							   format_type_extended(value_type, -1, 0),
+							   format_type_extended(typmod, -1, 0),
 							   format_type_extended(colhdr->value_type, -1, 0))));
-
 	}
 
 	pgstat_report_wait_end();

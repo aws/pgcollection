@@ -138,8 +138,8 @@ BEGIN
 END
 $$;
 NOTICE:  Subscript test 10
-ERROR:  Incompatible value data type
-DETAIL:  Expecting text, but received date
+ERROR:  incompatible value data type
+DETAIL:  expecting text, but received date
 CONTEXT:  PL/pgSQL function inline_code_block line 7 at assignment
 DO
 $$
@@ -176,3 +176,32 @@ END
 $$;
 NOTICE:  Subscript test 12
 NOTICE:  The current val is <NULL>
+DO
+$$
+DECLARE
+  t  collection;
+BEGIN
+  RAISE NOTICE 'Subscript test 13';
+
+  t['1'] := 111::bigint;
+  t['2'] := 222::bigint;
+  RAISE NOTICE 'The type is %', value_type(t);
+END
+$$;
+NOTICE:  Subscript test 13
+NOTICE:  The type is text
+DO
+$$
+DECLARE
+  t  collection;
+BEGIN
+  RAISE NOTICE 'Subscript test 14';
+
+  t := add(t, '1', 111::bigint);
+  t['2'] := 'abc';
+END
+$$;
+NOTICE:  Subscript test 14
+ERROR:  incompatible value data type
+DETAIL:  expecting bigint, but received text
+CONTEXT:  PL/pgSQL function inline_code_block line 8 at assignment

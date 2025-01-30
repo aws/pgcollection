@@ -51,6 +51,7 @@ PG_FUNCTION_INFO_V1(collection_keys_to_table);
 PG_FUNCTION_INFO_V1(collection_values_to_table);
 PG_FUNCTION_INFO_V1(collection_to_table);
 
+PG_FUNCTION_INFO_V1(collection_value_type);
 PG_FUNCTION_INFO_V1(collection_stats);
 PG_FUNCTION_INFO_V1(collection_stats_reset);
 
@@ -88,15 +89,34 @@ collection_add(PG_FUNCTION_ARGS)
 	argtype = get_fn_expr_argtype(fcinfo->flinfo, 2);
 	get_typlenbyval(argtype, &argtypelen, &argtypebyval);
 
+	/*
+	 * Set the value type of the collection to the first element added
+	 */
+	if (colhdr->value_type == InvalidOid)
+	{
+		colhdr->value_type = argtype;
+		colhdr->value_type_len = argtypelen;
+		colhdr->value_byval = argtypebyval;
+	}
+	else
+	{
+		if (!can_coerce_type(1, &argtype, &colhdr->value_type, COERCION_IMPLICIT))
+		{
+			pgstat_report_wait_end();
+			ereport(ERROR,
+					(errcode(ERRCODE_DATATYPE_MISMATCH),
+					 errmsg("incompatible value data type"),
+					 errdetail("expecting %s, but received %s",
+							   format_type_extended(colhdr->value_type, -1, 0),
+							   format_type_extended(argtype, -1, 0))));
+		}
+	}
+
 	item = (collection *) palloc(sizeof(collection));
 	item->key = key;
 	item->value = datumCopy(value, argtypebyval, argtypelen);
 
 	HASH_REPLACE(hh, colhdr->current, key[0], strlen(key), item, replaced_item);
-
-	colhdr->value_type = argtype;
-	colhdr->value_type_len = argtypelen;
-	colhdr->value_byval = argtypebyval;
 
 	if (colhdr->head == NULL)
 		colhdr->head = colhdr->current;
@@ -587,6 +607,19 @@ collection_to_table(PG_FUNCTION_ARGS)
 		/* do when there is no more left */
 		SRF_RETURN_DONE(funcctx);
 	}
+}
+
+Datum
+collection_value_type(PG_FUNCTION_ARGS)
+{
+	CollectionHeader *colhdr;
+
+	colhdr = fetch_collection(fcinfo, 0);
+
+	if (colhdr->head == NULL || colhdr->value_type == InvalidOid)
+		PG_RETURN_NULL();
+
+	PG_RETURN_OID(colhdr->value_type);
 }
 
 Datum

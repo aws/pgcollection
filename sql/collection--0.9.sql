@@ -157,6 +157,11 @@ CREATE FUNCTION to_table(collection, anyelement, OUT key text, OUT value anyelem
   AS 'MODULE_PATHNAME', 'collection_to_table'
   LANGUAGE c;
 
+CREATE FUNCTION value_type(collection)
+  RETURNS regtype
+  AS 'MODULE_PATHNAME', 'collection_value_type'
+  LANGUAGE c;
+
 CREATE FUNCTION collection_stats(OUT add int8, OUT context_switch int8, 
                                  OUT delete int8, OUT find int8, OUT sort int8)
   AS 'MODULE_PATHNAME', 'collection_stats'

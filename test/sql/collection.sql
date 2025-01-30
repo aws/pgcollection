@@ -327,3 +327,38 @@ INSERT INTO collections_test VALUES (2, add(null::collection, 'bbb', 'Hello ALL'
 SELECT * FROM collections_test ORDER BY c1;
 
 DROP TABLE collections_test;
+
+DO
+$$
+DECLARE
+  t  collection;
+BEGIN
+  RAISE NOTICE 'Test 23';
+  t := add(t, '1', 111::bigint);
+  t := add(t, '2', 222::bigint);
+  RAISE NOTICE 'The current val is %', value(t, null::bigint);
+  RAISE NOTICE 'The current value type is %', pg_typeof(value(t, null::bigint));
+END
+$$;
+
+DO
+$$
+DECLARE
+  t  collection;
+BEGIN
+  RAISE NOTICE 'Test 24';
+  t := add(t, '1', 111::bigint);
+  t := add(t, '2', 'hello'::text);
+END
+$$;
+
+DO
+$$
+DECLARE
+  t  collection;
+BEGIN
+  RAISE NOTICE 'Test 25';
+  t := add(t, '1', 111::bigint);
+  RAISE NOTICE 'The type is %', value_type(t);
+END
+$$;
