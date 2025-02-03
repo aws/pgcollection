@@ -35,7 +35,7 @@
 #undef uthash_nonfatal_oom
 #define uthash_malloc(sz) palloc(sz)
 #define uthash_free(ptr,sz) pfree(ptr)
-#define uthash_nonfatal_oom(e) do{elog(ERROR, "Unable to allocate memory");}while(0)
+#define uthash_nonfatal_oom(e) do{elog(ERROR, "unable to allocate memory");}while(0)
 
 #define COLLECTION_MAGIC 8675309	/* ID for debugging crosschecks */
 

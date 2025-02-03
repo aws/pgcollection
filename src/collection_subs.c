@@ -121,7 +121,7 @@ collection_subscript_fetch(ExprState *state,
 	/* Should not get here if source collection is null */
 	Assert(!(*op->resnull));
 
-	colhdr = (CollectionHeader *) DatumGetEOHP(*op->resvalue);
+	colhdr = (CollectionHeader *) DatumGetExpandedCollection(*op->resvalue);
 
 	/* Check for null subscript */
 	if (sbsrefstate->upperindexnull[0])
@@ -213,7 +213,7 @@ collection_subscript_assign(ExprState *state,
 	}
 	else
 	{
-		colhdr = (CollectionHeader *) DatumGetEOHP(*op->resvalue);
+		colhdr = (CollectionHeader *) DatumGetExpandedCollection(*op->resvalue);
 	}
 
 	pgstat_report_wait_start(collection_we_assign);

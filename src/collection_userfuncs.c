@@ -283,6 +283,7 @@ collection_copy(PG_FUNCTION_ARGS)
 
 		copyhdr->value_type = colhdr->value_type;
 		copyhdr->value_type_len = colhdr->value_type_len;
+		copyhdr->value_byval = colhdr->value_byval;
 
 		head = colhdr->head;
 		for (iter = colhdr->head; iter != NULL; iter = iter->hh.next)

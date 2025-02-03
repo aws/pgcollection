@@ -68,6 +68,7 @@ CollectionHeader *
 parse_collection(char *json)
 {
 	CollectionHeader *colhdr;
+	MemoryContext oldcxt;
 	ListCell   *lc1;
 	ListCell   *lc2;
 	Oid			typInput;
@@ -78,6 +79,10 @@ parse_collection(char *json)
 	JsonSemAction sem;
 	JsonCollectionParseState parse;
 	JsonCollectionParseContext context;
+
+	colhdr = construct_empty_collection(CurrentMemoryContext);
+
+	oldcxt = MemoryContextSwitchTo(colhdr->hdr.eoh_context);
 
 	context.private_data = json;
 
@@ -118,9 +123,6 @@ parse_collection(char *json)
 	if (json_error != JSON_SUCCESS)
 		elog(ERROR, "Invalid format");
 
-	colhdr = construct_empty_collection(CurrentMemoryContext);
-
-
 	if (parse.typname)
 	{
 		Oid			typid;
@@ -128,11 +130,13 @@ parse_collection(char *json)
 		typid = DatumGetObjectId(DirectFunctionCall1(regtypein, CStringGetDatum(parse.typname)));
 		colhdr->value_type = typid;
 		colhdr->value_type_len = get_typlen(typid);
+		colhdr->value_byval = get_typbyval(typid);
 	}
 	else
 	{
 		colhdr->value_type = TEXTOID;
 		colhdr->value_type_len = -1;
+		colhdr->value_byval = false;
 	}
 
 	getTypeInputInfo(colhdr->value_type, &typInput, &typIOParam);
@@ -149,15 +153,19 @@ parse_collection(char *json)
 		item->key = key;
 
 		value = OidFunctionCall1(typInput, CStringGetDatum(vstr));
-		item->value = datumCopy(value, true, colhdr->value_type_len);
+		item->value = datumCopy(value, colhdr->value_byval, colhdr->value_type_len);
 
-		HASH_ADD_PTR(colhdr->current, key, item);
+		HASH_ADD_KEYPTR(hh, colhdr->current, key, strlen(key), item);
 
 		if (i == 0)
 			colhdr->head = colhdr->current;
 
 		i++;
 	}
+
+	colhdr->current = colhdr->head;
+
+	MemoryContextSwitchTo(oldcxt);
 
 	return colhdr;
 }

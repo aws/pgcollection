@@ -185,3 +185,23 @@ BEGIN
 END
 $$;
 
+DO
+$$
+DECLARE
+  t collection('bigint');
+  x collection('bigint');
+BEGIN
+  RAISE NOTICE 'Subscript test 15';
+  t['1'] := 1;
+  t['2'] := 2;
+  t['111'] := 11;
+
+  RAISE NOTICE 'The current val of t is %', t;
+
+  x := (t::text)::collection('bigint');
+  RAISE NOTICE 'The current val of x is %', x;
+  RAISE NOTICE 'The current val of t[2] is %', t['2'];
+
+  RAISE NOTICE 'The current val of x[2] is %', x['2'];
+END
+$$;
