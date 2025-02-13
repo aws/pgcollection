@@ -1,0 +1,42 @@
+{
+   "name": "pgcollection",
+   "abstract": "A collection data type",
+   "description": "pgcollection is a memory optimized data type for PostgreSQL used as a high performance data structure inside of plpglsql functions to create associative arrays",
+   "version": "0.9.0",
+   "maintainer": "Jim Mlodgenski <jimmy76@gmail.com>",
+   "license": "apache_2_0",
+   "prereqs": {
+        "runtime": {
+            "requires": {
+                "PostgreSQL": "14.0.0"
+            }
+        }
+    },
+    "provides": {
+        "pgcollection": {
+            "file": "sql/collection--0.9.sql",
+            "docfile": "pgcollection.md",
+            "version": "0.9.0"
+        }
+    },
+    "resources": {
+        "bugtracker": {
+            "web": "https://github.com/aws/pgcollection/issues"
+        },
+        "repository": {
+            "url": "https://github.com/aws/pgcollection.git" ,
+            "web": "https://github.com/aws/pgcollection",
+            "type": "git"
+        }
+    },
+    "meta-spec": {
+      "version": "1.0.0",
+      "url": "https://pgxn.org/meta/spec.txt"
+   },
+   "tags": [
+      "data type",
+      "compatibility",
+      "associative array",
+      "key value"
+   ]
+}

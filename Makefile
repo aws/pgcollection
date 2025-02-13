@@ -16,7 +16,7 @@ OBJS =  src/collection.o \
 REGRESS = collection subscript iteration srf
 REGRESS_OPTS = --inputdir=test --outputdir=test --load-extension=collection
 
-EXTRA_CLEAN = test/results/ test/regression.diffs test/regression.out
+EXTRA_CLEAN = test/results/ test/regression.diffs test/regression.out $(EXTENSION)-$(EXTVERSION).zip
 
 PG_CPPFLAGS += -I./include/
 
@@ -26,3 +26,6 @@ PG_CPPFLAGS += -DHASH_BLOOM=16
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
+
+dist:
+	git archive --format zip --prefix=$(EXTENSION)-$(EXTVERSION)/ -o $(EXTENSION)-$(EXTVERSION).zip HEAD
