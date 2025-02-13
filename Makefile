@@ -1,5 +1,5 @@
 EXTENSION = collection
-EXTVERSION = 0.9
+EXTVERSION = 0.9.0
 DATA = $(wildcard sql/*.sql)
 
 PGFILEDESC = "pgcollection - collection data type for PostgreSQL"
@@ -16,7 +16,7 @@ OBJS =  src/collection.o \
 REGRESS = collection subscript iteration srf
 REGRESS_OPTS = --inputdir=test --outputdir=test --load-extension=collection
 
-EXTRA_CLEAN = test/results/ test/regression.diffs test/regression.out $(EXTENSION)-$(EXTVERSION).zip
+EXTRA_CLEAN = test/results/ test/regression.diffs test/regression.out pgcollection-$(EXTVERSION).zip
 
 PG_CPPFLAGS += -I./include/
 
@@ -28,4 +28,4 @@ PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
 
 dist:
-	git archive --format zip --prefix=$(EXTENSION)-$(EXTVERSION)/ -o $(EXTENSION)-$(EXTVERSION).zip HEAD
+	git archive --format zip --prefix=pgcollection-$(EXTVERSION)/ -o pgcollection-$(EXTVERSION).zip HEAD
