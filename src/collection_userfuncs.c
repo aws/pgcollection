@@ -116,10 +116,13 @@ collection_add(PG_FUNCTION_ARGS)
 	item->key = key;
 	item->value = datumCopy(value, argtypebyval, argtypelen);
 
-	HASH_REPLACE(hh, colhdr->current, key[0], strlen(key), item, replaced_item);
+	HASH_REPLACE(hh, colhdr->head, key[0], strlen(key), item, replaced_item);
 
-	if (colhdr->head == NULL)
-		colhdr->head = colhdr->current;
+	if (replaced_item)
+		pfree(replaced_item);
+
+	if (colhdr->current == NULL)
+		colhdr->current = colhdr->head;
 
 	MemoryContextSwitchTo(oldcxt);
 
@@ -230,6 +233,14 @@ collection_delete(PG_FUNCTION_ARGS)
 
 		HASH_DEL(colhdr->head, item);
 		pfree(item);
+
+		/* Clean up the hash table if the last item was deleted */
+		if (HASH_COUNT(colhdr->head) == 0)
+		{
+			HASH_CLEAR(hh, colhdr->head);
+			colhdr->head = NULL;
+			colhdr->current = NULL;
+		}
 	}
 
 	stats.delete++;

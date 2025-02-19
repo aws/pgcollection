@@ -237,10 +237,10 @@ collection_subscript_assign(ExprState *state,
 	item->key = key;
 	item->value = datumCopy(sbsrefstate->replacevalue, workspace->value_byval, workspace->value_type_len);
 
-	HASH_REPLACE(hh, colhdr->current, key[0], strlen(key), item, replaced_item);
+	HASH_REPLACE(hh, colhdr->head, key[0], strlen(key), item, replaced_item);
 
-	if (colhdr->head == NULL)
-		colhdr->head = colhdr->current;
+	if (colhdr->current == NULL)
+		colhdr->current = colhdr->head;
 
 	MemoryContextSwitchTo(oldcxt);
 

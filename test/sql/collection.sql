@@ -362,3 +362,18 @@ BEGIN
   RAISE NOTICE 'The type is %', value_type(t);
 END
 $$;
+
+DO $$
+DECLARE
+  u   collection;
+BEGIN
+  RAISE NOTICE 'Test 26';
+  u := add(u, 'aaa', 'Hello World'::text);
+  u := add(u, 'bbb', 'Hello All'::text);
+  u := delete(u, 'aaa');
+  u := delete(u, 'bbb');
+  u := add(u, 'aaa', 'Hello'::text);
+  u := add(u, 'bbb', 'World'::text);
+  RAISE NOTICE 'count: %', count(u);
+END
+$$;

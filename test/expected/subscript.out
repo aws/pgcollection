@@ -230,3 +230,19 @@ NOTICE:  The current val of t is {"value_type": "bigint", "entries": {"1": "1", 
 NOTICE:  The current val of x is {"value_type": "bigint", "entries": {"1": "1", "2": "2", "111": "11"}}
 NOTICE:  The current val of t[2] is 2
 NOTICE:  The current val of x[2] is 2
+DO $$
+DECLARE
+  u   collection;
+BEGIN
+  RAISE NOTICE 'Subscript test 16';
+  u['aaa'] := 'Hello World'::text;
+  u['bbb'] := 'Hello All'::text;
+  u := delete(u, 'aaa');
+  u := delete(u, 'bbb');
+  u['aaa'] := 'Hello'::text;
+  u['bbb'] := 'World'::text;
+  RAISE NOTICE 'count: %', count(u);
+END
+$$;
+NOTICE:  Subscript test 16
+NOTICE:  count: 2

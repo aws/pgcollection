@@ -205,3 +205,18 @@ BEGIN
   RAISE NOTICE 'The current val of x[2] is %', x['2'];
 END
 $$;
+
+DO $$
+DECLARE
+  u   collection;
+BEGIN
+  RAISE NOTICE 'Subscript test 16';
+  u['aaa'] := 'Hello World'::text;
+  u['bbb'] := 'Hello All'::text;
+  u := delete(u, 'aaa');
+  u := delete(u, 'bbb');
+  u['aaa'] := 'Hello'::text;
+  u['bbb'] := 'World'::text;
+  RAISE NOTICE 'count: %', count(u);
+END
+$$;
