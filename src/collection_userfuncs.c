@@ -258,11 +258,11 @@ collection_sort(PG_FUNCTION_ARGS)
 
 	pgstat_report_wait_start(collection_we_sort);
 
-	if (colhdr->current)
+	if (colhdr->head)
 	{
-		HASH_SORT(colhdr->current, by_key);
+		HASH_SORT(colhdr->head, by_key);
 
-		colhdr->head = colhdr->current;
+		colhdr->current = colhdr->head;
 	}
 
 	stats.sort++;
@@ -281,7 +281,7 @@ collection_copy(PG_FUNCTION_ARGS)
 
 	pgstat_report_wait_start(collection_we_copy);
 
-	if (colhdr->current)
+	if (colhdr->head)
 	{
 		MemoryContext oldcxt;
 		collection *iter;
@@ -311,10 +311,10 @@ collection_copy(PG_FUNCTION_ARGS)
 			item->key = key;
 			item->value = datumCopy(iter->value, colhdr->value_byval, colhdr->value_type_len);
 
-			HASH_ADD(hh, copyhdr->current, key[0], strlen(key), item);
+			HASH_ADD(hh, copyhdr->head, key[0], strlen(key), item);
 
-			if (!copyhdr->head)
-				copyhdr->head = copyhdr->current;
+			if (!copyhdr->current)
+				copyhdr->current = copyhdr->head;
 		}
 		colhdr->head = head;
 
