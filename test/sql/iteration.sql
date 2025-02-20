@@ -208,3 +208,28 @@ BEGIN
   RAISE NOTICE 'find after next: %', find(u, 'aaa');
 END
 $$;
+
+DO $$
+DECLARE
+  u   collection COLLATE "en_US";
+  v   collection COLLATE "C";
+BEGIN
+  RAISE NOTICE 'Iteration test 15';
+  u['a'] := '1'::text;
+  u['B'] := '2'::text;
+  u['c'] := '3'::text;
+  v := copy(u);
+
+  u := sort(u);
+  WHILE NOT isnull(u) LOOP
+    RAISE NOTICE 'u value: %', value(u);
+    u := next(u);
+  END LOOP;
+
+  v := sort(v);
+  WHILE NOT isnull(v) LOOP
+    RAISE NOTICE 'v value: %', value(v);
+    v := next(v);
+  END LOOP;
+END
+$$;

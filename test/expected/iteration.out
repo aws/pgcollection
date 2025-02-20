@@ -238,3 +238,34 @@ END
 $$;
 NOTICE:  Iteration test 14
 NOTICE:  find after next: Hello World
+DO $$
+DECLARE
+  u   collection COLLATE "en_US";
+  v   collection COLLATE "C";
+BEGIN
+  RAISE NOTICE 'Iteration test 15';
+  u['a'] := '1'::text;
+  u['B'] := '2'::text;
+  u['c'] := '3'::text;
+  v := copy(u);
+
+  u := sort(u);
+  WHILE NOT isnull(u) LOOP
+    RAISE NOTICE 'u value: %', value(u);
+    u := next(u);
+  END LOOP;
+
+  v := sort(v);
+  WHILE NOT isnull(v) LOOP
+    RAISE NOTICE 'v value: %', value(v);
+    v := next(v);
+  END LOOP;
+END
+$$;
+NOTICE:  Iteration test 15
+NOTICE:  u value: 1
+NOTICE:  u value: 2
+NOTICE:  u value: 3
+NOTICE:  v value: 2
+NOTICE:  v value: 1
+NOTICE:  v value: 3

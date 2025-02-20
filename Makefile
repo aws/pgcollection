@@ -1,5 +1,5 @@
 EXTENSION = collection
-EXTVERSION = 0.9.0
+EXTVERSION = 0.9.1
 DATA = $(wildcard sql/*.sql)
 
 PGFILEDESC = "pgcollection - collection data type for PostgreSQL"

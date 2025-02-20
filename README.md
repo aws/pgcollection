@@ -73,7 +73,7 @@ CREATE EXTENSION collection;
 | next(collection)                        | collection              | Sets the collection iterator to the next item                                              |
 | prev(collection)                        | collection              | Stes the collection iterator to the previous item                                          |
 | copy(collection)                        | collection              | Returns a copy of a collection without a context switch                                    |
-| sort(collection)                        | collection              | Sorts a collection by the keys in the default collation order and points to the first item |
+| sort(collection)                        | collection              | Sorts a collection by the keys in collation order and points to the first item             |
 | isnull(collection)                      | bool                    | Returns true if the current location of the iterator is null                               |
 | key(collection)                         | text                    | Returns the key of the item the collection is pointed at                                   |
 | value(collection)                       | text                    | Returns the value as text of the item the collection is pointed at                         |
@@ -194,6 +194,33 @@ BEGIN
 
   t_capital := sort(t_capital);
   RAISE NOTICE 'The current element is %', key(t_capital);
+END
+$$;
+```
+
+### Collations
+
+A collection is a collatable type meaning that the sort order of the keys in a
+collection is dependent on the collation defined for the collection. A
+collection will use the collation of the database by default, but alternative
+collations can be used when defining the collection variable.
+
+```sql
+DO
+$$
+DECLARE
+  t_capital  collection COLLATE "en_US";
+  r          record;
+BEGIN
+  t_capital['USA']            := 'Washington, D.C.';
+  t_capital['United Kingdom'] := 'London';
+  t_capital['Japan']          := 'Tokyo';
+
+  t_capital := sort(t_capital);
+  FOR r IN SELECT * FROM keys_to_table(t_capital) AS k 
+  LOOP
+    RAISE NOTICE 'The current element is %', r.k;
+  END LOOP;
 END
 $$;
 ```

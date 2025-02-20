@@ -58,6 +58,7 @@ PG_FUNCTION_INFO_V1(collection_stats_reset);
 StatsCounters stats;
 
 static int	by_key(const struct collection *a, const struct collection *b);
+static Oid	collection_collation = DEFAULT_COLLATION_OID;
 
 Datum
 collection_add(PG_FUNCTION_ARGS)
@@ -255,6 +256,8 @@ collection_sort(PG_FUNCTION_ARGS)
 	CollectionHeader *colhdr;
 
 	colhdr = fetch_collection(fcinfo, 0);
+
+	collection_collation = PG_GET_COLLATION();
 
 	pgstat_report_wait_start(collection_we_sort);
 
@@ -675,5 +678,5 @@ collection_stats_reset(PG_FUNCTION_ARGS)
 static int
 by_key(const struct collection *a, const struct collection *b)
 {
-	return varstr_cmp(a->key, strlen(a->key), b->key, strlen(b->key), DEFAULT_COLLATION_OID);
+	return varstr_cmp(a->key, strlen(a->key), b->key, strlen(b->key), collection_collation);
 }
