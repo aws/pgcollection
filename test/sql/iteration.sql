@@ -233,3 +233,17 @@ BEGIN
   END LOOP;
 END
 $$;
+
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 16';
+  u['aaa'] := 'Hello World';
+
+  u := first(u);
+  u := prev(u);
+  RAISE NOTICE 'value: %', value(u);
+END
+$$;
+

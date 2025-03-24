@@ -410,7 +410,7 @@ collection_prev(PG_FUNCTION_ARGS)
 
 	colhdr = fetch_collection(fcinfo, 0);
 
-	if (colhdr->current || colhdr->head)
+	if (colhdr->current)
 		colhdr->current = colhdr->current->hh.prev;
 
 	PG_RETURN_DATUM(EOHPGetRWDatum(&colhdr->hdr));
