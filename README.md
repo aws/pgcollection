@@ -15,9 +15,6 @@ The value of an element can be any PostgreSQL type including composite types
 with a default of type `text`. All elements in a collection must be of the 
 same type. 
 
-*NOTE: pgcollection is currently in beta and not recommended for production 
-use. Please test and report any issues or concerns so they can be addressed.*
-
 ```sql
 DO
 $$
