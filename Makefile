@@ -13,7 +13,7 @@ OBJS =  src/collection.o \
 		src/collection_subs.o \
 		src/collection_parse.o
 
-REGRESS = collection subscript iteration srf
+REGRESS = collection subscript iteration srf select
 REGRESS_OPTS = --inputdir=test --outputdir=test --load-extension=collection
 
 EXTRA_CLEAN = test/results/ test/regression.diffs test/regression.out pgcollection-$(EXTVERSION).zip

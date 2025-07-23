@@ -224,6 +224,7 @@ DatumGetExpandedCollection(Datum d)
 	MemoryContext oldcxt;
 	int			location = 0;
 	int			i = 0;
+	struct varlena *attr;
 
 	if (VARATT_IS_EXTERNAL_EXPANDED(DatumGetPointer(d)))
 	{
@@ -236,7 +237,14 @@ DatumGetExpandedCollection(Datum d)
 
 	pgstat_report_wait_start(collection_we_expand);
 
-	fc = (FlatCollectionType *) DatumGetPointer(d);
+	/* Check whether toasted or not */
+	if (VARATT_IS_EXTENDED(DatumGetPointer(d)))
+	{
+		attr = PG_DETOAST_DATUM_COPY(d);
+		fc = (FlatCollectionType *) attr;
+	}
+	else
+		fc = (FlatCollectionType *) (DatumGetPointer(d));
 
 	/* Validate that the type exists */
 	lookup_type_cache(fc->value_type, 0);

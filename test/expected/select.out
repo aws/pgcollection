@@ -1,0 +1,142 @@
+CREATE TABLE select_collection(col_collection collection);
+INSERT INTO select_collection VALUES('{"value_type":"pg_catalog.text","entries":{"USA":"Washington", "UK":"London"}}');
+INSERT INTO select_collection VALUES('{"value_type":"pg_catalog.text","entries":{"India":"New Delhi"}}');
+INSERT INTO select_collection VALUES('{"entries":{"China":"Beijing"}}');
+INSERT INTO select_collection VALUES('{"value_type":"pg_catalog.text","entries":{"NULL":"NULL"}}');
+INSERT INTO select_collection VALUES('{"value_type":"pg_catalog.text","entries":{"Canada":"Ottawa"}}');
+INSERT INTO select_collection VALUES('{"value_type":"pg_catalog.text","entries":{"India":"New Delhi"}}');
+INSERT INTO select_collection VALUES('{"value_type":"pg_catalog.text","entries":{"Australia":"Canberra"}}');
+-- should throw error
+INSERT INTO select_collection VALUES('{"value_type":"pg_catalog.text","entries":{NULL:NULL}}');
+ERROR:  Invalid format
+LINE 1: INSERT INTO select_collection VALUES('{"value_type":"pg_cata...
+                                             ^
+SELECT * FROM select_collection;
+                                   col_collection                                    
+-------------------------------------------------------------------------------------
+ {"value_type": "pg_catalog.text", "entries": {"USA": "Washington", "UK": "London"}}
+ {"value_type": "pg_catalog.text", "entries": {"India": "New Delhi"}}
+ {"value_type": "pg_catalog.text", "entries": {"China": "Beijing"}}
+ {"value_type": "pg_catalog.text", "entries": {"NULL": "NULL"}}
+ {"value_type": "pg_catalog.text", "entries": {"Canada": "Ottawa"}}
+ {"value_type": "pg_catalog.text", "entries": {"India": "New Delhi"}}
+ {"value_type": "pg_catalog.text", "entries": {"Australia": "Canberra"}}
+(7 rows)
+
+SELECT sort(col_collection) FROM select_collection;
+                                        sort                                         
+-------------------------------------------------------------------------------------
+ {"value_type": "pg_catalog.text", "entries": {"UK": "London", "USA": "Washington"}}
+ {"value_type": "pg_catalog.text", "entries": {"India": "New Delhi"}}
+ {"value_type": "pg_catalog.text", "entries": {"China": "Beijing"}}
+ {"value_type": "pg_catalog.text", "entries": {"NULL": "NULL"}}
+ {"value_type": "pg_catalog.text", "entries": {"Canada": "Ottawa"}}
+ {"value_type": "pg_catalog.text", "entries": {"India": "New Delhi"}}
+ {"value_type": "pg_catalog.text", "entries": {"Australia": "Canberra"}}
+(7 rows)
+
+SELECT key(col_collection) FROM select_collection;
+    key    
+-----------
+ USA
+ India
+ China
+ NULL
+ Canada
+ India
+ Australia
+(7 rows)
+
+SELECT value(col_collection) FROM select_collection;
+   value    
+------------
+ Washington
+ New Delhi
+ Beijing
+ NULL
+ Ottawa
+ New Delhi
+ Canberra
+(7 rows)
+
+SELECT value_type(col_collection) FROM select_collection;
+ value_type 
+------------
+ text
+ text
+ text
+ text
+ text
+ text
+ text
+(7 rows)
+
+SELECT to_table(col_collection) FROM select_collection;
+       to_table       
+----------------------
+ (USA,Washington)
+ (UK,London)
+ (India,"New Delhi")
+ (China,Beijing)
+ (NULL,NULL)
+ (Canada,Ottawa)
+ (India,"New Delhi")
+ (Australia,Canberra)
+(8 rows)
+
+SELECT keys_to_table(col_collection) FROM select_collection;
+ keys_to_table 
+---------------
+ USA
+ UK
+ India
+ China
+ NULL
+ Canada
+ India
+ Australia
+(8 rows)
+
+SELECT values_to_table(col_collection) FROM select_collection;
+ values_to_table 
+-----------------
+ Washington
+ London
+ New Delhi
+ Beijing
+ NULL
+ Ottawa
+ New Delhi
+ Canberra
+(8 rows)
+
+SELECT COUNT(col_collection) FROM select_collection;
+ count 
+-------
+     2
+     1
+     1
+     1
+     1
+     1
+     1
+(7 rows)
+
+INSERT INTO select_collection VALUES('{"value_type":"pg_catalog.varchar","entries":{"Japan":"Tokyo"}}');
+INSERT INTO select_collection VALUES('{"value_type":"pg_catalog.char","entries":{"Canada":"Ottawa"}}');
+SELECT * FROM select_collection;
+                                   col_collection                                    
+-------------------------------------------------------------------------------------
+ {"value_type": "pg_catalog.text", "entries": {"USA": "Washington", "UK": "London"}}
+ {"value_type": "pg_catalog.text", "entries": {"India": "New Delhi"}}
+ {"value_type": "pg_catalog.text", "entries": {"China": "Beijing"}}
+ {"value_type": "pg_catalog.text", "entries": {"NULL": "NULL"}}
+ {"value_type": "pg_catalog.text", "entries": {"Canada": "Ottawa"}}
+ {"value_type": "pg_catalog.text", "entries": {"India": "New Delhi"}}
+ {"value_type": "pg_catalog.text", "entries": {"Australia": "Canberra"}}
+ {"value_type": "character varying", "entries": {"Japan": "Tokyo"}}
+ {"value_type": "pg_catalog.\"char\"", "entries": {"Canada": "O"}}
+(9 rows)
+
+DROP TABLE select_collection;
+
