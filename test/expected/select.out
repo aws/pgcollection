@@ -139,4 +139,3 @@ SELECT * FROM select_collection;
 (9 rows)
 
 DROP TABLE select_collection;
-
