@@ -30,7 +30,11 @@
 
 #include "collection.h"
 
+#ifdef PG_MODULE_MAGIC_EXT
+PG_MODULE_MAGIC_EXT(.name = "collection", .version = "1.0.0");
+#else
 PG_MODULE_MAGIC;
+#endif
 
 static const ExpandedObjectMethods collection_expand_methods =
 {
