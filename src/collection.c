@@ -31,7 +31,7 @@
 #include "collection.h"
 
 #ifdef PG_MODULE_MAGIC_EXT
-PG_MODULE_MAGIC_EXT(.name = "collection", .version = "1.0.0");
+PG_MODULE_MAGIC_EXT(.name = "collection", .version = "1.0.1");
 #else
 PG_MODULE_MAGIC;
 #endif
