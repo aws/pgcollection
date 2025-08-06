@@ -283,3 +283,15 @@ END
 $$;
 NOTICE:  Iteration test 16
 NOTICE:  value: <NULL>
+DO
+$$
+DECLARE
+  a collection;
+BEGIN
+  FOR i IN 1..1000 LOOP
+    a[i::text] := 'abc';
+  END LOOP;
+RAISE NOTICE 'Size of collection is %', length(a::text);
+END;
+$$;
+NOTICE:  Size of collection is 13939
