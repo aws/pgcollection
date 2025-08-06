@@ -92,9 +92,6 @@ collection_get_flat_size(ExpandedObjectHeader *eohptr)
 
 	Assert(colhdr->collection_magic == COLLECTION_MAGIC);
 
-	if (colhdr->flat_size)
-		return colhdr->flat_size;
-
 	pgstat_report_wait_start(collection_we_flatsize);
 
 	for (cur = colhdr->head; cur != NULL; cur = cur->hh.next)
