@@ -47,6 +47,7 @@ PG_FUNCTION_INFO_V1(collection_isnull);
 PG_FUNCTION_INFO_V1(collection_next);
 PG_FUNCTION_INFO_V1(collection_prev);
 PG_FUNCTION_INFO_V1(collection_first);
+PG_FUNCTION_INFO_V1(collection_last);
 PG_FUNCTION_INFO_V1(collection_keys_to_table);
 PG_FUNCTION_INFO_V1(collection_values_to_table);
 PG_FUNCTION_INFO_V1(collection_to_table);
@@ -423,6 +424,20 @@ collection_first(PG_FUNCTION_ARGS)
 
 	colhdr = fetch_collection(fcinfo, 0);
 	colhdr->current = colhdr->head;
+
+	PG_RETURN_DATUM(EOHPGetRWDatum(&colhdr->hdr));
+}
+
+Datum
+collection_last(PG_FUNCTION_ARGS)
+{
+	CollectionHeader *colhdr;
+
+	colhdr = fetch_collection(fcinfo, 0);
+
+	if (colhdr->current)
+		colhdr->current = ELMT_FROM_HH(colhdr->current->hh.tbl, colhdr->current->hh.tbl->tail);
+
 
 	PG_RETURN_DATUM(EOHPGetRWDatum(&colhdr->hdr));
 }

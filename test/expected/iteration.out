@@ -288,10 +288,140 @@ $$
 DECLARE
   a collection;
 BEGIN
+  RAISE NOTICE 'Iteration test 17';
   FOR i IN 1..1000 LOOP
     a[i::text] := 'abc';
   END LOOP;
 RAISE NOTICE 'Size of collection is %', length(a::text);
 END;
 $$;
+NOTICE:  Iteration test 17
 NOTICE:  Size of collection is 13939
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 18';
+  u := add(u, 'aaa', 'Hello World'::text);
+  u := add(u, 'bbb', 'Hello All'::text);
+  u := add(u, 'ccc', 'Hi'::text);
+
+  RAISE NOTICE 'value: %', value(u);
+
+  u := last(u);
+  RAISE NOTICE 'value: %', value(u);
+END
+$$;
+NOTICE:  Iteration test 18
+NOTICE:  value: Hello World
+NOTICE:  value: Hi
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 19';
+  u['aaa'] := 'Hello World';
+  u['bbb'] := 'Hello All';
+  u['ccc'] := 'Hi';
+
+  RAISE NOTICE 'value: %', value(u);
+
+  u := last(u);
+  RAISE NOTICE 'value: %', value(u);
+END
+$$;
+NOTICE:  Iteration test 19
+NOTICE:  value: Hello World
+NOTICE:  value: Hi
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 20';
+  u['aaa'] := 'Hello World';
+  u['bbb'] := 'Hello All';
+  u['ccc'] := 'Hi';
+
+  u := last(u);
+  RAISE NOTICE 'value: %', value(u);
+  u := prev(u);
+  RAISE NOTICE 'value: %', value(u);
+END
+$$;
+NOTICE:  Iteration test 20
+NOTICE:  value: Hi
+NOTICE:  value: Hello All
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 21';
+  u['aaa'] := 'Hello World';
+  u['bbb'] := 'Hello All';
+  u['ccc'] := 'Hi';
+
+  u := last(u);
+  WHILE NOT isnull(u) LOOP
+    RAISE NOTICE 'value: %', value(u);
+    u := prev(u);
+  END LOOP;
+END
+$$;
+NOTICE:  Iteration test 21
+NOTICE:  value: Hi
+NOTICE:  value: Hello All
+NOTICE:  value: Hello World
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 22';
+  u['aaa'] := 'Hello World';
+  u['bbb'] := 'Hello All';
+  u['ccc'] := 'Hi';
+
+  u := delete(u, 'ccc');
+  u := last(u);
+  RAISE NOTICE 'value: %', value(u);
+END
+$$;
+NOTICE:  Iteration test 22
+NOTICE:  value: Hello All
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 23';
+  u['ccc'] := 'Hi';
+
+  u := delete(u, 'ccc');
+  u := last(u);
+  RAISE NOTICE 'value: %', value(u);
+END
+$$;
+NOTICE:  Iteration test 23
+NOTICE:  value: <NULL>
+DO $$
+DECLARE
+  u   collection('text');
+  t   text;
+BEGIN
+  RAISE NOTICE 'Iteration test 24';
+  u['ccc'] := '3';
+  u['bbb'] := '2';
+  u['eee'] := '5';
+  u['ddd'] := '4';
+  u['aaa'] := '1';
+
+  u := last(u);
+  RAISE NOTICE 'value: %', value(u);
+
+  u := sort(u);
+
+  u := last(u);
+  RAISE NOTICE 'value: %', value(u);
+END
+$$;
+NOTICE:  Iteration test 24
+NOTICE:  value: 1
+NOTICE:  value: 5

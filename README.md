@@ -67,6 +67,7 @@ CREATE EXTENSION collection;
 | find(collection, text)                  | text                    | Returns a text item from a collection if it exists                                         |
 | find(collection, text, anyelement)      | anyelement              | Returns an anyelement item from a collection if it exists                                  |
 | first(collection)                       | collection              | Sets the collection iterator to the first item                                             |
+| last(collection)                        | collection              | Sets the collection iterator to the last item                                             |
 | next(collection)                        | collection              | Sets the collection iterator to the next item                                              |
 | prev(collection)                        | collection              | Stes the collection iterator to the previous item                                          |
 | copy(collection)                        | collection              | Returns a copy of a collection without a context switch                                    |
@@ -169,14 +170,16 @@ END
 $$;
 ```
 
-### First and Sort Functions
+### First, Last and Sort Functions
 
 Before starting to iterate over a collection, it is good practice the ensure 
-that the iterator is positioned at the start of the collection. The `first` 
-function will return a reference to the collection at the first element. If
-there is a need to iterate over a collection sorted by the value of the keys
-instead of the order the elements were added, the `sort` function will sort
-the collection and return a reference to the first sorted element. 
+that the iterator is positioned at the start or end of the collection depending
+on the direction the collection will be traversed. The `first` function will 
+return a reference to the collection at the first element and conversely the
+`last` function will return a reference to the last element. If there is a 
+need to iterate over a collection sorted by the value of the keys instead of 
+the order the elements were added, the `sort` function will sort the collection
+and return a reference to the first sorted element. 
 
 ```sql
 DO

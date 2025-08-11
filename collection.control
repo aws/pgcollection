@@ -1,5 +1,5 @@
 # collection
 comment = 'Collection is a memory optimized data type primarily used as a high performance data structure inside of plpglsql functions.'
-default_version = '1.0.1'
+default_version = '1.1.0'
 module_pathname = '$libdir/collection'
 relocatable = true
