@@ -247,3 +247,14 @@ BEGIN
 END
 $$;
 
+DO
+$$
+DECLARE
+  a collection;
+BEGIN
+  FOR i IN 1..1000 LOOP
+    a[i::text] := 'abc';
+  END LOOP;
+RAISE NOTICE 'Size of collection is %', length(a::text);
+END;
+$$;

@@ -35,4 +35,3 @@ INSERT INTO select_collection VALUES('{"value_type":"pg_catalog.char","entries":
 SELECT * FROM select_collection;
 
 DROP TABLE select_collection;
-
