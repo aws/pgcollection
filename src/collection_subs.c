@@ -202,6 +202,12 @@ collection_subscript_assign(ExprState *state,
 				(errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
 				 errmsg("collection subscript in assignment must not be null")));
 
+	/* Check for null assignment */
+	if (sbsrefstate->replacenull)
+		ereport(ERROR,
+				(errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
+				 errmsg("collection value in assignment must not be null")));
+
 	if (*op->resnull)
 	{
 		colhdr = construct_empty_collection(CurrentMemoryContext);

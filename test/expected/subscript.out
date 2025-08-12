@@ -246,3 +246,14 @@ END
 $$;
 NOTICE:  Subscript test 16
 NOTICE:  count: 2
+DO $$
+DECLARE
+  u   collection('bytea');
+BEGIN
+  RAISE NOTICE 'Subscript test 17';
+  u['aaa'] := NULL::bytea;
+END
+$$;
+NOTICE:  Subscript test 17
+ERROR:  collection value in assignment must not be null
+CONTEXT:  PL/pgSQL function inline_code_block line 6 at assignment
