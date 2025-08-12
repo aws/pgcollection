@@ -1,3 +1,7 @@
 *.o
 *.so
+*.zip
+META.json
+collection.control
+/include/collection_config.h
 /test/results/

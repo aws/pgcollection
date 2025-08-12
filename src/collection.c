@@ -29,9 +29,10 @@
 #include "utils/wait_event.h"
 
 #include "collection.h"
+#include "collection_config.h"
 
 #ifdef PG_MODULE_MAGIC_EXT
-PG_MODULE_MAGIC_EXT(.name = "collection",.version = "1.1.0");
+PG_MODULE_MAGIC_EXT(.name = EXT_NAME,.version = EXT_VERSION);
 #else
 PG_MODULE_MAGIC;
 #endif
