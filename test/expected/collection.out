@@ -453,3 +453,14 @@ END
 $$;
 NOTICE:  Test 26
 NOTICE:  count: 2
+DO $$
+DECLARE
+  n collection('numeric(8,2)');
+BEGIN
+  RAISE NOTICE 'Test 27';
+  n['aaa'] := 3.14::numeric;
+END $$;
+ERROR:  invalid COLLECTION type modifier
+LINE 3:   n collection('numeric(8,2)');
+            ^
+DETAIL:  the type cannot have a type modifier

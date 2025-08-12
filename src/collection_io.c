@@ -21,6 +21,7 @@
 #include "catalog/pg_type.h"
 #include "common/jsonapi.h"
 #include "parser/parse_coerce.h"
+#include "parser/parse_type.h"
 #include "pgstat.h"
 #include "utils/builtins.h"
 #include "utils/datum.h"
@@ -138,6 +139,7 @@ collection_typmodin(PG_FUNCTION_ARGS)
 	ArrayType  *ta = PG_GETARG_ARRAYTYPE_P(0);
 	Datum	   *elem_values;
 	int			n;
+	Oid			typoid = 0;
 	int32		typmod = 0;
 
 	if (ARR_ELEMTYPE(ta) != CSTRINGOID)
@@ -162,12 +164,20 @@ collection_typmodin(PG_FUNCTION_ARGS)
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 				 errmsg("invalid COLLECTION type modifier")));
-		typmod = 0;				/* keep compiler quiet */
+		typoid = 0;				/* keep compiler quiet */
 	}
 
-	typmod = DatumGetObjectId(DirectFunctionCall1(regtypein, elem_values[0]));
+	parseTypeString(DatumGetCString(elem_values[0]), &typoid, &typmod, NULL);
 
-	PG_RETURN_INT32(typmod);
+	if (typmod != -1)
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("invalid COLLECTION type modifier"),
+				 errdetail("the type cannot have a type modifier")));
+	}
+
+	PG_RETURN_INT32(typoid);
 }
 
 Datum

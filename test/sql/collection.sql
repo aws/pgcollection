@@ -377,3 +377,11 @@ BEGIN
   RAISE NOTICE 'count: %', count(u);
 END
 $$;
+
+DO $$
+DECLARE
+  n collection('numeric(8,2)');
+BEGIN
+  RAISE NOTICE 'Test 27';
+  n['aaa'] := 3.14::numeric;
+END $$;
