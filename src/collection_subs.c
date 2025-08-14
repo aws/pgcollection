@@ -46,7 +46,7 @@ typedef struct CollectionSubWorkspace
 
 PG_FUNCTION_INFO_V1(collection_subscript_handler);
 
-static Oid collection_oid;
+static Oid	collection_oid;
 
 /*
  * Finish parse analysis of a SubscriptingRef expression for collection.
