@@ -229,3 +229,45 @@ BEGIN
   u['aaa'] := NULL::bytea;
 END
 $$;
+
+DO $$
+DECLARE
+  n collection('numeric');
+BEGIN
+  RAISE NOTICE 'Subscript test 18';
+  n['aaa'] := 3.14::numeric(8,2);
+  n['bbb'] := 42::numeric(8,2);
+  RAISE NOTICE 'aaa: %', n['aaa'];
+  RAISE NOTICE 'bbb: %', n['bbb'];
+END $$;
+
+DO $$
+DECLARE
+  n collection('INTERVAL');
+BEGIN
+  RAISE NOTICE 'Subscript test 19';
+  n['aaa'] := INTERVAL '5 days 4 hours 3 minutes 2 seconds';
+  RAISE NOTICE 'aaa: %', n['aaa'];
+END $$;
+
+CREATE FUNCTION test_timestamps()
+  RETURNS void AS
+$$
+DECLARE
+  m collection('TIMESTAMP WITHOUT TIME ZONE');
+  n collection('TIMESTAMP WITH TIME ZONE');
+BEGIN
+  RAISE NOTICE 'Subscript test 20';
+  m['M'] := '2024-01-15 10:30:45'::TIMESTAMP(0);
+
+  n['O'] := '2024-01-15 10:30:45.123456+02:00'::TIMESTAMP(6) WITH TIME ZONE;
+
+  RAISE NOTICE 'm[M]: %', m['M'];
+  RAISE NOTICE 'n[O]: %', n['O'];
+END
+$$ LANGUAGE plpgsql
+SET TIME ZONE 'UTC';
+
+SELECT test_timestamps();
+
+DROP FUNCTION test_timestamps();

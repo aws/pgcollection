@@ -24,6 +24,7 @@
 
 #include "catalog/pg_type_d.h"
 #include "executor/execExpr.h"
+#include "catalog/namespace.h"
 #include "nodes/nodeFuncs.h"
 #include "nodes/subscripting.h"
 #include "parser/parse_coerce.h"
@@ -44,6 +45,8 @@ typedef struct CollectionSubWorkspace
 }			CollectionSubWorkspace;
 
 PG_FUNCTION_INFO_V1(collection_subscript_handler);
+
+static Oid collection_oid;
 
 /*
  * Finish parse analysis of a SubscriptingRef expression for collection.
@@ -97,6 +100,9 @@ collection_subscript_transform(SubscriptingRef *sbsref,
 		sbsref->refrestype = TEXTOID;
 	else
 		sbsref->refrestype = sbsref->reftypmod;
+
+	/* Reset the type modifier for the result */
+	sbsref->reftypmod = -1;
 }
 
 /*
@@ -279,16 +285,21 @@ collection_exec_setup(const SubscriptingRef *sbsref,
 	sbsrefstate->workspace = workspace;
 
 	/* Default to fetching as text unless the typmod is set */
-	if (sbsref->reftypmod == -1)
+	if (sbsref->refrestype == collection_oid && sbsref->reftypmod != -1)
+	{
+		workspace->value_type = sbsref->reftypmod;
+		get_typlenbyval(sbsref->reftypmod, &workspace->value_type_len, &workspace->value_byval);
+	}
+	else if (sbsref->refrestype != InvalidOid && sbsref->refrestype != collection_oid && sbsref->reftypmod == -1)
+	{
+		workspace->value_type = sbsref->refrestype;
+		get_typlenbyval(sbsref->refrestype, &workspace->value_type_len, &workspace->value_byval);
+	}
+	else
 	{
 		workspace->value_type = TEXTOID;
 		workspace->value_type_len = -1;
 		workspace->value_byval = false;
-	}
-	else
-	{
-		workspace->value_type = sbsref->reftypmod;
-		get_typlenbyval(sbsref->reftypmod, &workspace->value_type_len, &workspace->value_byval);
 	}
 
 	/* Pass back pointers to appropriate step execution functions */
@@ -312,6 +323,8 @@ collection_subscript_handler(PG_FUNCTION_ARGS)
 		.fetch_leakproof = true,	/* fetch returns NULL for bad subscript */
 		.store_leakproof = false	/* ... but assignment throws error */
 	};
+
+	collection_oid = TypenameGetTypidExtended("collection", false);
 
 	PG_RETURN_POINTER(&sbsroutines);
 }
