@@ -6,8 +6,7 @@ PGFILEDESC = "pgcollection - collection data type for PostgreSQL"
 DOCS = pgcollection.md
 
 MODULE_big = $(EXTENSION)
-OBJS = include/$(EXTENSION)_config.h \
-		src/collection.o \
+OBJS = src/collection.o \
 		src/collection_io.o \
 		src/collection_userfuncs.o \
 		src/collection_subs.o \
@@ -40,6 +39,8 @@ include/$(EXTENSION)_config.h: include/$(EXTENSION)_config.h.in META.json
 
 $(EXTENSION).control: $(EXTENSION).control.in
 	sed 's,EXTVERSION,$(EXTVERSION),g; s,EXTNAME,$(EXTENSION),g' $< > $@;
+
+src/collection.o: include/$(EXTENSION)_config.h
 
 dist:
 	git archive --format zip --prefix=pgcollection-$(EXTVERSION)/ -o pgcollection-$(EXTVERSION).zip HEAD
