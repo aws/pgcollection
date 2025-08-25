@@ -290,6 +290,8 @@ SELECT '{"value_type": "text", "entries": {"aaa": "Hello World", "bbb": "Hello A
 
 SELECT add(add(null::collection, 'aaa', '1999-12-31'::date),'bbb', '2000-01-01'::date);
 
+SELECT add(add(null::collection, 'aaa', '1999-12-31'::date),'bbb', null::date);
+
 SELECT '{"value_type": "text", "entries": {"aaa": "Hello World"}'::collection;
 
 SELECT '{"value_type": "text", "entry": {"aaa": "Hello World"}}'::collection;

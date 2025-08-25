@@ -129,7 +129,7 @@ BEGIN
 END
 $$;
 NOTICE:  Test 10
-ERROR:  Key and value must not be null
+ERROR:  Key must not be null
 CONTEXT:  PL/pgSQL function inline_code_block line 7 at assignment
 DO $$
 DECLARE
@@ -142,8 +142,7 @@ BEGIN
 END
 $$;
 NOTICE:  Test 11
-ERROR:  Key and value must not be null
-CONTEXT:  PL/pgSQL function inline_code_block line 7 at assignment
+NOTICE:  count: 2
 DO $$
 DECLARE
   u   collection;
@@ -331,6 +330,12 @@ SELECT add(add(null::collection, 'aaa', '1999-12-31'::date),'bbb', '2000-01-01':
                                            add                                            
 ------------------------------------------------------------------------------------------
  {"value_type": "pg_catalog.date", "entries": {"aaa": "12-31-1999", "bbb": "01-01-2000"}}
+(1 row)
+
+SELECT add(add(null::collection, 'aaa', '1999-12-31'::date),'bbb', null::date);
+                                       add                                        
+----------------------------------------------------------------------------------
+ {"value_type": "pg_catalog.date", "entries": {"aaa": "12-31-1999", "bbb": null}}
 (1 row)
 
 SELECT '{"value_type": "text", "entries": {"aaa": "Hello World"}'::collection;

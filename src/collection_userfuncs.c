@@ -74,10 +74,10 @@ collection_add(PG_FUNCTION_ARGS)
 	int16		argtypelen;
 	bool		argtypebyval;
 
-	if (PG_ARGISNULL(1) || PG_ARGISNULL(2))
+	if (PG_ARGISNULL(1))
 		ereport(ERROR,
 				(errcode(ERRCODE_DATATYPE_MISMATCH),
-				 errmsg("Key and value must not be null")));
+				 errmsg("Key must not be null")));
 
 	colhdr = fetch_collection(fcinfo, 0);
 
@@ -86,7 +86,8 @@ collection_add(PG_FUNCTION_ARGS)
 	oldcxt = MemoryContextSwitchTo(colhdr->hdr.eoh_context);
 
 	key = text_to_cstring(PG_GETARG_TEXT_PP(1));
-	value = PG_GETARG_DATUM(2);
+	item = (collection *) palloc(sizeof(collection));
+	item->key = key;
 
 	argtype = get_fn_expr_argtype(fcinfo->flinfo, 2);
 	get_typlenbyval(argtype, &argtypelen, &argtypebyval);
@@ -114,9 +115,15 @@ collection_add(PG_FUNCTION_ARGS)
 		}
 	}
 
-	item = (collection *) palloc(sizeof(collection));
-	item->key = key;
-	item->value = datumCopy(value, argtypebyval, argtypelen);
+	if (PG_ARGISNULL(2))
+		item->isnull = true;
+	else
+	{
+		value = PG_GETARG_DATUM(2);
+
+		item->value = datumCopy(value, argtypebyval, argtypelen);
+		item->isnull = false;
+	}
 
 	HASH_REPLACE(hh, colhdr->head, key[0], strlen(key), item, replaced_item);
 
@@ -180,6 +187,13 @@ collection_find(PG_FUNCTION_ARGS)
 	HASH_FIND(hh, colhdr->head, key, strlen(key), item);
 
 	if (item == NULL)
+	{
+		stats.find++;
+		pgstat_report_wait_end();
+		PG_RETURN_NULL();
+	}
+
+	if (item->isnull)
 	{
 		stats.find++;
 		pgstat_report_wait_end();
@@ -313,7 +327,9 @@ collection_copy(PG_FUNCTION_ARGS)
 
 			item = (collection *) palloc(sizeof(collection));
 			item->key = key;
-			item->value = datumCopy(iter->value, colhdr->value_byval, colhdr->value_type_len);
+			item->isnull = iter->isnull;
+			if (!iter->isnull)
+				item->value = datumCopy(iter->value, colhdr->value_byval, colhdr->value_type_len);
 
 			HASH_ADD(hh, copyhdr->head, key[0], strlen(key), item);
 
@@ -357,6 +373,9 @@ collection_value(PG_FUNCTION_ARGS)
 	colhdr = fetch_collection(fcinfo, 0);
 
 	if (colhdr->current == NULL)
+		PG_RETURN_NULL();
+
+	if (colhdr->current->isnull)
 		PG_RETURN_NULL();
 
 	pgstat_report_wait_start(collection_we_value);
@@ -538,11 +557,18 @@ collection_values_to_table(PG_FUNCTION_ARGS)
 
 	if (fctx->cur != NULL)
 	{
-		Datum		value = datumCopy(fctx->cur->value, fctx->typebyval, fctx->typelen);
+		if (fctx->cur->isnull)
+		{
+			fctx->cur = fctx->cur->hh.next;
+			SRF_RETURN_NEXT_NULL(funcctx);
+		}
+		else
+		{
+			Datum		value = datumCopy(fctx->cur->value, fctx->typebyval, fctx->typelen);
 
-		fctx->cur = fctx->cur->hh.next;
-
-		SRF_RETURN_NEXT(funcctx, value);
+			fctx->cur = fctx->cur->hh.next;
+			SRF_RETURN_NEXT(funcctx, value);
+		}
 	}
 	else
 	{
@@ -623,7 +649,11 @@ collection_to_table(PG_FUNCTION_ARGS)
 		HeapTuple	tuple;
 
 		values[0] = CStringGetTextDatum(fctx->cur->key);
-		values[1] = datumCopy(fctx->cur->value, fctx->typebyval, fctx->typelen);
+
+		if (fctx->cur->isnull)
+			nulls[1] = true;
+		else
+			values[1] = datumCopy(fctx->cur->value, fctx->typebyval, fctx->typelen);
 
 		tuple = heap_form_tuple(fctx->tupdesc, values, nulls);
 

@@ -146,21 +146,27 @@ collection_flatten_into(ExpandedObjectHeader *eohptr,
 
 		key_len = strlen(cur->key);
 
-		if (colhdr->value_type_len != -1)
-		{
-			value_len = colhdr->value_type_len;
-			is_varlena = false;
-		}
-		else
-		{
-			struct varlena *s = (struct varlena *) DatumGetPointer(cur->value);
-
-			value_len = (size_t) VARSIZE_ANY(s);
-			is_varlena = true;
-		}
-
 		memcpy(cresult->values + location, (char *) &key_len, sizeof(key_len));
 		location += sizeof(key_len);
+
+		if (cur->isnull)
+		{
+			value_len = 0;
+		}
+		else{
+			if (colhdr->value_type_len != -1)
+			{
+				value_len = colhdr->value_type_len;
+				is_varlena = false;
+			}
+			else
+			{
+				struct varlena *s = (struct varlena *) DatumGetPointer(cur->value);
+
+				value_len = (size_t) VARSIZE_ANY(s);
+				is_varlena = true;
+			}
+		}
 
 		memcpy(cresult->values + location, (char *) &value_len, sizeof(value_len));
 		location += sizeof(value_len);
@@ -168,12 +174,15 @@ collection_flatten_into(ExpandedObjectHeader *eohptr,
 		memcpy(cresult->values + location, cur->key, key_len);
 		location += key_len;
 
-		if (is_varlena)
-			memcpy((char *) cresult->values + location, (char *) cur->value, value_len);
-		else
-			memcpy((char *) cresult->values + location, (char *) &cur->value, value_len);
+		if (value_len > 0)
+		{
+			if (is_varlena)
+				memcpy((char *) cresult->values + location, (char *) cur->value, value_len);
+			else
+				memcpy((char *) cresult->values + location, (char *) &cur->value, value_len);
 
-		location += value_len;
+			location += value_len;
+		}
 	}
 	stats.context_switch++;
 	pgstat_report_wait_end();
@@ -287,11 +296,17 @@ DatumGetExpandedCollection(Datum d)
 
 		item->key = key;
 
-		if (colhdr->value_type_len != -1)
-			item->value = datumCopy((Datum) *value, colhdr->value_byval, value_len);
+		if (value_len == 0)
+			item->isnull = true;
 		else
-			item->value = datumCopy((Datum) value, colhdr->value_byval, value_len);
+		{
+			item->isnull = false;
 
+			if (colhdr->value_type_len != -1)
+				item->value = datumCopy((Datum) *value, colhdr->value_byval, value_len);
+			else
+				item->value = datumCopy((Datum) value, colhdr->value_byval, value_len);
+		}
 
 		HASH_ADD(hh, colhdr->current, key[0], strlen(key), item);
 

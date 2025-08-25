@@ -43,6 +43,7 @@ typedef struct collection
 {
 	char	   *key;
 	Datum		value;
+	bool		isnull;
 	UT_hash_handle hh;
 }			collection;
 

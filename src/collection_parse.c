@@ -52,6 +52,7 @@ typedef struct
 	char	   *typname;
 	List	   *keys;
 	List	   *values;
+	List	   *nulls;
 }			JsonCollectionParseState;
 
 static JsonParseErrorType json_collection_object_start(void *state);
@@ -71,6 +72,7 @@ parse_collection(char *json)
 	MemoryContext oldcxt;
 	ListCell   *lc1;
 	ListCell   *lc2;
+	ListCell   *lc3;
 	Oid			typInput;
 	Oid			typIOParam;
 	int			i = 0;
@@ -95,6 +97,7 @@ parse_collection(char *json)
 #endif
 	parse.keys = NIL;
 	parse.values = NIL;
+	parse.nulls = NIL;
 	parse.typname = NULL;
 
 	/* Set up semantic actions. */
@@ -141,19 +144,25 @@ parse_collection(char *json)
 
 	getTypeInputInfo(colhdr->value_type, &typInput, &typIOParam);
 
-	forboth(lc1, parse.keys, lc2, parse.values)
+	forthree(lc1, parse.keys, lc2, parse.values, lc3, parse.nulls)
 	{
 		collection *item;
 		char	   *key = lfirst(lc1);
 		char	   *vstr = lfirst(lc2);
+		bool		isnull = (bool) lfirst_int(lc3);
 		Datum		value;
 
 		item = (collection *) palloc(sizeof(collection));
 
 		item->key = key;
 
-		value = OidFunctionCall1(typInput, CStringGetDatum(vstr));
-		item->value = datumCopy(value, colhdr->value_byval, colhdr->value_type_len);
+		item->isnull = isnull;
+
+		if (!isnull)
+		{
+			value = OidFunctionCall1(typInput, CStringGetDatum(vstr));
+			item->value = datumCopy(value, colhdr->value_byval, colhdr->value_type_len);
+		}
 
 		HASH_ADD_KEYPTR(hh, colhdr->current, key, strlen(key), item);
 
@@ -253,6 +262,7 @@ json_collection_object_field_start(void *state, char *fname, bool isnull)
 			key = palloc0(strlen(fname) + 1);
 			strcpy(key, fname);
 			parse->keys = lappend(parse->keys, key);
+			parse->nulls = lappend_int(parse->nulls, (int) isnull);
 			break;
 
 		default:

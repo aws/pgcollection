@@ -145,6 +145,8 @@ collection_subscript_fetch(ExprState *state,
 
 	if (item == NULL)
 		value = (Datum) 0;
+	else if (item->isnull)
+		value = (Datum) 0;
 	else
 	{
 		if (can_coerce_type(1, &workspace->value_type, &colhdr->value_type, COERCION_IMPLICIT))
@@ -208,12 +210,6 @@ collection_subscript_assign(ExprState *state,
 				(errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
 				 errmsg("collection subscript in assignment must not be null")));
 
-	/* Check for null assignment */
-	if (sbsrefstate->replacenull)
-		ereport(ERROR,
-				(errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
-				 errmsg("collection value in assignment must not be null")));
-
 	if (*op->resnull)
 	{
 		colhdr = construct_empty_collection(CurrentMemoryContext);
@@ -247,7 +243,16 @@ collection_subscript_assign(ExprState *state,
 
 	item = (collection *) palloc(sizeof(collection));
 	item->key = key;
-	item->value = datumCopy(sbsrefstate->replacevalue, workspace->value_byval, workspace->value_type_len);
+
+
+	/* Check for null assignment */
+	if (sbsrefstate->replacenull)
+		item->isnull = true;
+	else
+	{
+		item->value = datumCopy(sbsrefstate->replacevalue, workspace->value_byval, workspace->value_type_len);
+		item->isnull = false;
+	}
 
 	HASH_REPLACE(hh, colhdr->head, key[0], strlen(key), item, replaced_item);
 

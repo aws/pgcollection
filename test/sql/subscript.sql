@@ -227,6 +227,7 @@ DECLARE
 BEGIN
   RAISE NOTICE 'Subscript test 17';
   u['aaa'] := NULL::bytea;
+  RAISE NOTICE 'count: %', count(u);
 END
 $$;
 
