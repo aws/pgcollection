@@ -227,6 +227,8 @@ DatumGetExpandedCollection(Datum d)
 	int			location = 0;
 	int			i = 0;
 	struct varlena *attr;
+	/* Bulk allocate all collection items at once */
+	collection *items = NULL;
 
 	if (VARATT_IS_EXTERNAL_EXPANDED(DatumGetPointer(d)))
 	{
@@ -258,13 +260,14 @@ DatumGetExpandedCollection(Datum d)
 	colhdr->value_type = fc->value_type;
 	get_typlenbyval(fc->value_type, &colhdr->value_type_len, &colhdr->value_byval);
 
+	if (fc->num_entries > 0)
+		items = (collection *) palloc(fc->num_entries * sizeof(collection));
 
 	while (i < fc->num_entries)
 	{
 		int16		key_len;
 		size_t		value_len;
 		char	   *key;
-		Datum	   *value;
 		collection *item;
 
 		memcpy((unsigned char *) &key_len, fc->values + location, sizeof(int16));
@@ -273,27 +276,33 @@ DatumGetExpandedCollection(Datum d)
 		memcpy((unsigned char *) &value_len, fc->values + location, sizeof(size_t));
 		location += sizeof(size_t);
 
-		item = (collection *) palloc(sizeof(collection));
-
+		item = &items[i];
 
 		key = (char *) palloc(key_len + 1);
 		memcpy(key, fc->values + location, key_len);
 		key[key_len] = '\0';
+
 		location += key_len;
 
-		value = (Datum *) palloc(value_len);
-		memcpy((unsigned char *) value, fc->values + location, value_len);
+		item->key = key;
+		/* Handle value without extra allocation/deallocation */
+		if (colhdr->value_type_len != -1)
+		{
+			/* Fixed-length type: read directly from buffer */
+			Datum temp_value;
+			memcpy(&temp_value, fc->values + location, value_len);
+			item->value = datumCopy(temp_value, colhdr->value_byval, colhdr->value_type_len);
+		}
+		else
+		{
+			/* Variable-length type: pass pointer directly to datumCopy */
+			item->value = datumCopy((Datum) (fc->values + location), colhdr->value_byval, value_len);
+		}
+
 		location += value_len;
 
-		item->key = key;
-
-		if (colhdr->value_type_len != -1)
-			item->value = datumCopy((Datum) *value, colhdr->value_byval, value_len);
-		else
-			item->value = datumCopy((Datum) value, colhdr->value_byval, value_len);
-
-
-		HASH_ADD(hh, colhdr->current, key[0], strlen(key), item);
+		/* Use known key_len instead of calling strlen() */
+		HASH_ADD(hh, colhdr->current, key[0], key_len, item);
 
 		if (i == 0)
 			colhdr->head = colhdr->current;
