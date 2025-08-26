@@ -69,7 +69,7 @@ CREATE EXTENSION collection;
 | first(collection)                       | collection              | Sets the collection iterator to the first item                                             |
 | last(collection)                        | collection              | Sets the collection iterator to the last item                                             |
 | next(collection)                        | collection              | Sets the collection iterator to the next item                                              |
-| prev(collection)                        | collection              | Stes the collection iterator to the previous item                                          |
+| prev(collection)                        | collection              | Sets the collection iterator to the previous item                                          |
 | copy(collection)                        | collection              | Returns a copy of a collection without a context switch                                    |
 | sort(collection)                        | collection              | Sorts a collection by the keys in collation order and points to the first item             |
 | isnull(collection)                      | bool                    | Returns true if the current location of the iterator is null                               |
@@ -82,6 +82,27 @@ CREATE EXTENSION collection;
 | to_table(collection)                    | TABLE(text, text)       | Returns all of the keys and values as text in the collection                               |
 | to_table(collection, anyelement)        | TABLE(text, anyelement) | Returns all of the keys and values as anyelement in the collection                         |
 | value_type(collection)                  | regtype                 | Returns the data type of the elements within the collection                                |
+
+## Finding an Item in a Collection
+
+The `find` function comes in two different variants. The first takes two
+parameters and returns the value as a `text` type. The second takes a third
+parameter of the pseudo-type `anyelement` which is used to determine the return
+type. If `find` is called with a key that has not been defined in the
+collection, a `no_data_found` error is thrown.
+
+```sql
+DO
+$$
+DECLARE
+  c1   collection('date');
+BEGIN
+  c1 := add(c1, 'k1', '1999-12-31'::date);
+
+  RAISE NOTICE 'The value of c1 is %', find(c1, 'k1', null::date);
+END
+$$;
+```
 
 ## Using Subscripts
 

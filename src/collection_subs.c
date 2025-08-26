@@ -144,7 +144,13 @@ collection_subscript_fetch(ExprState *state,
 	HASH_FIND(hh, colhdr->head, key, strlen(key), item);
 
 	if (item == NULL)
-		value = (Datum) 0;
+	{
+		stats.find++;
+		pgstat_report_wait_end();
+		ereport(ERROR,
+			(errcode(ERRCODE_NO_DATA_FOUND),
+				errmsg("key \"%s\" not found", key)));
+	}
 	else if (item->isnull)
 		value = (Datum) 0;
 	else
@@ -163,6 +169,8 @@ collection_subscript_fetch(ExprState *state,
 			}
 			else
 			{
+				stats.find++;
+				pgstat_report_wait_end();
 				ereport(ERROR,
 						(errcode(ERRCODE_DATATYPE_MISMATCH),
 						 errmsg("Incompatible value data type"),

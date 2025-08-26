@@ -177,7 +177,8 @@ BEGIN
 END
 $$;
 NOTICE:  Test 14
-NOTICE:  find: <NULL>
+ERROR:  key "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" not found
+CONTEXT:  PL/pgSQL function inline_code_block line 8 at RAISE
 DO $$
 DECLARE
   u   collection;

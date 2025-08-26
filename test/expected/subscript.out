@@ -91,7 +91,8 @@ BEGIN
 END
 $$;
 NOTICE:  Subscript test 7
-NOTICE:  value: <NULL>
+ERROR:  key "ddd" not found
+CONTEXT:  PL/pgSQL function inline_code_block line 10 at RAISE
 DO
 $$
 DECLARE

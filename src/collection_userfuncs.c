@@ -190,7 +190,9 @@ collection_find(PG_FUNCTION_ARGS)
 	{
 		stats.find++;
 		pgstat_report_wait_end();
-		PG_RETURN_NULL();
+		ereport(ERROR,
+			(errcode(ERRCODE_NO_DATA_FOUND),
+				errmsg("key \"%s\" not found", key)));
 	}
 
 	if (item->isnull)
