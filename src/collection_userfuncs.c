@@ -37,6 +37,7 @@
 PG_FUNCTION_INFO_V1(collection_add);
 PG_FUNCTION_INFO_V1(collection_count);
 PG_FUNCTION_INFO_V1(collection_find);
+PG_FUNCTION_INFO_V1(collection_exist);
 PG_FUNCTION_INFO_V1(collection_delete);
 PG_FUNCTION_INFO_V1(collection_sort);
 PG_FUNCTION_INFO_V1(collection_copy);
@@ -191,8 +192,8 @@ collection_find(PG_FUNCTION_ARGS)
 		stats.find++;
 		pgstat_report_wait_end();
 		ereport(ERROR,
-			(errcode(ERRCODE_NO_DATA_FOUND),
-				errmsg("key \"%s\" not found", key)));
+				(errcode(ERRCODE_NO_DATA_FOUND),
+				 errmsg("key \"%s\" not found", key)));
 	}
 
 	if (item->isnull)
@@ -218,6 +219,45 @@ collection_find(PG_FUNCTION_ARGS)
 	pgstat_report_wait_end();
 
 	PG_RETURN_DATUM(value);
+}
+
+Datum
+collection_exist(PG_FUNCTION_ARGS)
+{
+	char	   *key;
+	collection *item;
+	CollectionHeader *colhdr;
+
+	if (PG_ARGISNULL(1))
+	{
+		stats.exist++;
+		PG_RETURN_BOOL(false);
+	}
+
+	colhdr = fetch_collection(fcinfo, 0);
+	if (colhdr->head == NULL)
+	{
+		stats.exist++;
+		PG_RETURN_BOOL(false);
+	}
+
+	pgstat_report_wait_start(collection_we_exist);
+
+	key = text_to_cstring(PG_GETARG_TEXT_PP(1));
+
+	HASH_FIND(hh, colhdr->head, key, strlen(key), item);
+
+	if (item == NULL)
+	{
+		stats.exist++;
+		pgstat_report_wait_end();
+		PG_RETURN_BOOL(false);
+	}
+
+	stats.exist++;
+	pgstat_report_wait_end();
+
+	PG_RETURN_BOOL(true);
 }
 
 Datum
@@ -689,7 +729,7 @@ collection_stats(PG_FUNCTION_ARGS)
 {
 	Datum		result;
 	TupleDesc	tupleDesc;
-	char	   *values[5];
+	char	   *values[6];
 	int			j;
 	HeapTuple	tuple;
 
@@ -702,6 +742,7 @@ collection_stats(PG_FUNCTION_ARGS)
 	values[j++] = psprintf(INT64_FORMAT, (int64) stats.delete);
 	values[j++] = psprintf(INT64_FORMAT, (int64) stats.find);
 	values[j++] = psprintf(INT64_FORMAT, (int64) stats.sort);
+	values[j++] = psprintf(INT64_FORMAT, (int64) stats.exist);
 
 	tuple = BuildTupleFromCStrings(TupleDescGetAttInMetadata(tupleDesc),
 								   values);
@@ -717,6 +758,7 @@ collection_stats_reset(PG_FUNCTION_ARGS)
 	stats.context_switch = 0;
 	stats.delete = 0;
 	stats.find = 0;
+	stats.exist = 0;
 	stats.sort = 0;
 
 	PG_RETURN_VOID();

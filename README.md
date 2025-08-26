@@ -64,6 +64,7 @@ CREATE EXTENSION collection;
 | add(collection, text, anyelement)       | collection              | Adds an anyelement item to a collection                                                    |
 | count(collection)                       | int4                    | Returns the number of items in a collection                                                |
 | delete(collection, text)                | collection              | Deletes an item from a collection                                                          |
+| exist(collection, text)                 | text                    | Returns true if a given key exists in the collection                                          |
 | find(collection, text)                  | text                    | Returns a text item from a collection if it exists                                         |
 | find(collection, text, anyelement)      | anyelement              | Returns an anyelement item from a collection if it exists                                  |
 | first(collection)                       | collection              | Sets the collection iterator to the first item                                             |

@@ -84,6 +84,7 @@ typedef struct StatsCounters
 	int64		context_switch;
 	int64		delete;
 	int64		find;
+	int64		exist;
 	int64		sort;
 }			StatsCounters;
 
@@ -107,6 +108,7 @@ extern uint32 collection_we_cast;
 extern uint32 collection_we_add;
 extern uint32 collection_we_count;
 extern uint32 collection_we_find;
+extern uint32 collection_we_exist;
 extern uint32 collection_we_delete;
 extern uint32 collection_we_sort;
 extern uint32 collection_we_copy;

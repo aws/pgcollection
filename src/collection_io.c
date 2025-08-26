@@ -47,6 +47,7 @@ uint32		collection_we_cast;
 uint32		collection_we_add;
 uint32		collection_we_count;
 uint32		collection_we_find;
+uint32		collection_we_exist;
 uint32		collection_we_delete;
 uint32		collection_we_sort;
 uint32		collection_we_copy;

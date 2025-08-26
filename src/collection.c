@@ -57,6 +57,7 @@ _PG_init(void)
 	collection_we_add = WaitEventExtensionNew("CollectionAdd");
 	collection_we_count = WaitEventExtensionNew("CollectionCount");
 	collection_we_find = WaitEventExtensionNew("CollectionFind");
+	collection_we_exist = WaitEventExtensionNew("CollectionExist");
 	collection_we_delete = WaitEventExtensionNew("CollectionDelete");
 	collection_we_sort = WaitEventExtensionNew("CollectionSort");
 	collection_we_copy = WaitEventExtensionNew("CollectionCopy");
@@ -73,6 +74,7 @@ _PG_init(void)
 	collection_we_add = PG_WAIT_EXTENSION;
 	collection_we_count = PG_WAIT_EXTENSION;
 	collection_we_find = PG_WAIT_EXTENSION;
+	collection_we_exist = PG_WAIT_EXTENSION;
 	collection_we_delete = PG_WAIT_EXTENSION;
 	collection_we_copy = PG_WAIT_EXTENSION;
 	collection_we_value = PG_WAIT_EXTENSION;
@@ -153,7 +155,8 @@ collection_flatten_into(ExpandedObjectHeader *eohptr,
 		{
 			value_len = 0;
 		}
-		else{
+		else
+		{
 			if (colhdr->value_type_len != -1)
 			{
 				value_len = colhdr->value_type_len;

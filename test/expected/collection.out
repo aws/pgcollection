@@ -386,9 +386,9 @@ $$;
 NOTICE:  Test 22
 NOTICE:  count: u(2), v(3)
 SELECT * FROM collection_stats;
- add | context_switch | delete | find | sort 
------+----------------+--------+------+------
-   3 |              1 |      0 |    0 |    0
+ add | context_switch | delete | find | sort | exist 
+-----+----------------+--------+------+------+-------
+   3 |              1 |      0 |    0 |    0 |     0
 (1 row)
 
 CREATE TABLE collections_test (c1 int, c2 collection);
@@ -470,3 +470,20 @@ ERROR:  invalid COLLECTION type modifier
 LINE 3:   n collection('numeric(8,2)');
             ^
 DETAIL:  the type cannot have a type modifier
+DO $$
+DECLARE
+  u   collection;
+BEGIN
+  RAISE NOTICE 'Test 28';
+  u := add(u, 'aaa', 'Hello World'::text);
+  u := add(u, 'bbb', 'Hello All'::text);
+
+  RAISE NOTICE 'bbb exist: %', exist(u, 'bbb');
+  RAISE NOTICE 'ccc exist: %', exist(u, 'ccc');
+  RAISE NOTICE '<null> exist: %', exist(u, null);
+END
+$$;
+NOTICE:  Test 28
+NOTICE:  bbb exist: t
+NOTICE:  ccc exist: f
+NOTICE:  <null> exist: f

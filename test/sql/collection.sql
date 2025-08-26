@@ -387,3 +387,17 @@ BEGIN
   RAISE NOTICE 'Test 27';
   n['aaa'] := 3.14::numeric;
 END $$;
+
+DO $$
+DECLARE
+  u   collection;
+BEGIN
+  RAISE NOTICE 'Test 28';
+  u := add(u, 'aaa', 'Hello World'::text);
+  u := add(u, 'bbb', 'Hello All'::text);
+
+  RAISE NOTICE 'bbb exist: %', exist(u, 'bbb');
+  RAISE NOTICE 'ccc exist: %', exist(u, 'ccc');
+  RAISE NOTICE '<null> exist: %', exist(u, null);
+END
+$$;
