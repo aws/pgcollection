@@ -4,6 +4,7 @@
 CREATE FUNCTION last(collection)
   RETURNS collection
   AS 'MODULE_PATHNAME', 'collection_last'
+  STRICT
   LANGUAGE c;
 
 DROP VIEW collection_stats;
@@ -23,4 +24,28 @@ CREATE VIEW collection_stats
 CREATE FUNCTION exist(collection, text)
   RETURNS bool
   AS 'MODULE_PATHNAME', 'collection_exist'
+  LANGUAGE c;
+
+CREATE FUNCTION next_key(collection, text)
+  RETURNS text
+  AS 'MODULE_PATHNAME', 'collection_next_key'
+  STRICT
+  LANGUAGE c;
+
+CREATE FUNCTION prev_key(collection, text)
+  RETURNS text
+  AS 'MODULE_PATHNAME', 'collection_prev_key'
+  STRICT
+  LANGUAGE c;
+
+CREATE FUNCTION first_key(collection)
+  RETURNS text
+  AS 'MODULE_PATHNAME', 'collection_first_key'
+  STRICT
+  LANGUAGE c;
+
+CREATE FUNCTION last_key(collection)
+  RETURNS text
+  AS 'MODULE_PATHNAME', 'collection_last_key'
+  STRICT
   LANGUAGE c;

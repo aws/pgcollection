@@ -425,3 +425,59 @@ $$;
 NOTICE:  Iteration test 24
 NOTICE:  value: 1
 NOTICE:  value: 5
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 25';
+  u := add(u, 'aaa', 'Hello World');
+  u := add(u, 'bbb', 'Hello All');
+  u := add(u, 'ccc', 'Hi');
+  RAISE NOTICE 'next_key(bbb): %', next_key(u, 'bbb');
+  RAISE NOTICE 'next_key(ccc): %', next_key(u, 'ccc');
+END
+$$;
+NOTICE:  Iteration test 25
+NOTICE:  next_key(bbb): ccc
+NOTICE:  next_key(ccc): <NULL>
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 26';
+  u := add(u, 'aaa', 'Hello World');
+  u := add(u, 'bbb', 'Hello All');
+  u := add(u, 'ccc', 'Hi');
+  RAISE NOTICE 'prev_key(bbb): %', prev_key(u, 'bbb');
+  RAISE NOTICE 'prev_key(aaa): %', prev_key(u, 'aaa');
+END
+$$;
+NOTICE:  Iteration test 26
+NOTICE:  prev_key(bbb): aaa
+NOTICE:  prev_key(aaa): <NULL>
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 27';
+  u := add(u, 'aaa', 'Hello World');
+  u := add(u, 'bbb', 'Hello All');
+  u := add(u, 'ccc', 'Hi');
+  RAISE NOTICE 'first_key: %', first_key(u);
+END
+$$;
+NOTICE:  Iteration test 27
+NOTICE:  first_key: aaa
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 28';
+  u := add(u, 'aaa', 'Hello World');
+  u := add(u, 'bbb', 'Hello All');
+  u := add(u, 'ccc', 'Hi');
+  RAISE NOTICE 'last_key: %', last_key(u);
+END
+$$;
+NOTICE:  Iteration test 28
+NOTICE:  last_key: ccc

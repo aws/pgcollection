@@ -53,14 +53,21 @@ PG_FUNCTION_INFO_V1(collection_keys_to_table);
 PG_FUNCTION_INFO_V1(collection_values_to_table);
 PG_FUNCTION_INFO_V1(collection_to_table);
 
+PG_FUNCTION_INFO_V1(collection_next_key);
+PG_FUNCTION_INFO_V1(collection_prev_key);
+PG_FUNCTION_INFO_V1(collection_first_key);
+PG_FUNCTION_INFO_V1(collection_last_key);
+
 PG_FUNCTION_INFO_V1(collection_value_type);
 PG_FUNCTION_INFO_V1(collection_stats);
 PG_FUNCTION_INFO_V1(collection_stats_reset);
 
 StatsCounters stats;
 
-static int	by_key(const struct collection *a, const struct collection *b);
 static Oid	collection_collation = DEFAULT_COLLATION_OID;
+
+static int	by_key(const struct collection *a, const struct collection *b);
+static collection * find_internal(CollectionHeader * colhdr, char *key);
 
 Datum
 collection_add(PG_FUNCTION_ARGS)
@@ -171,7 +178,7 @@ collection_find(PG_FUNCTION_ARGS)
 	Oid			rettype;
 	CollectionHeader *colhdr;
 
-	if (PG_ARGISNULL(1))
+	if (PG_ARGISNULL(0) || PG_ARGISNULL(1))
 		PG_RETURN_NULL();
 
 	colhdr = fetch_collection(fcinfo, 0);
@@ -181,20 +188,9 @@ collection_find(PG_FUNCTION_ARGS)
 		PG_RETURN_NULL();
 	}
 
-	pgstat_report_wait_start(collection_we_find);
-
 	key = text_to_cstring(PG_GETARG_TEXT_PP(1));
 
-	HASH_FIND(hh, colhdr->head, key, strlen(key), item);
-
-	if (item == NULL)
-	{
-		stats.find++;
-		pgstat_report_wait_end();
-		ereport(ERROR,
-				(errcode(ERRCODE_NO_DATA_FOUND),
-				 errmsg("key \"%s\" not found", key)));
-	}
+	item = find_internal(colhdr, key);
 
 	if (item->isnull)
 	{
@@ -228,7 +224,7 @@ collection_exist(PG_FUNCTION_ARGS)
 	collection *item;
 	CollectionHeader *colhdr;
 
-	if (PG_ARGISNULL(1))
+	if (PG_ARGISNULL(0) || PG_ARGISNULL(1))
 	{
 		stats.exist++;
 		PG_RETURN_BOOL(false);
@@ -504,6 +500,93 @@ collection_last(PG_FUNCTION_ARGS)
 }
 
 Datum
+collection_next_key(PG_FUNCTION_ARGS)
+{
+	char	   *key;
+	collection *item;
+	collection *next;
+	CollectionHeader *colhdr;
+
+	colhdr = fetch_collection(fcinfo, 0);
+	if (colhdr->head == NULL)
+	{
+		stats.find++;
+		PG_RETURN_NULL();
+	}
+
+	key = text_to_cstring(PG_GETARG_TEXT_PP(1));
+
+	item = find_internal(colhdr, key);
+
+	next = (collection *) item->hh.next;
+
+	if (next == NULL)
+		PG_RETURN_NULL();
+
+	PG_RETURN_TEXT_P(cstring_to_text(next->key));
+}
+
+Datum
+collection_prev_key(PG_FUNCTION_ARGS)
+{
+	char	   *key;
+	collection *item;
+	collection *prev;
+	CollectionHeader *colhdr;
+
+	colhdr = fetch_collection(fcinfo, 0);
+	if (colhdr->head == NULL)
+	{
+		stats.find++;
+		PG_RETURN_NULL();
+	}
+
+	key = text_to_cstring(PG_GETARG_TEXT_PP(1));
+
+	item = find_internal(colhdr, key);
+
+	prev = (collection *) item->hh.prev;
+
+	if (prev == NULL)
+		PG_RETURN_NULL();
+
+	PG_RETURN_TEXT_P(cstring_to_text(prev->key));
+}
+
+Datum
+collection_first_key(PG_FUNCTION_ARGS)
+{
+	CollectionHeader *colhdr;
+
+	colhdr = fetch_collection(fcinfo, 0);
+	if (colhdr->head == NULL)
+	{
+		stats.find++;
+		PG_RETURN_NULL();
+	}
+
+	PG_RETURN_TEXT_P(cstring_to_text(colhdr->head->key));
+}
+
+Datum
+collection_last_key(PG_FUNCTION_ARGS)
+{
+	collection *item;
+	CollectionHeader *colhdr;
+
+	colhdr = fetch_collection(fcinfo, 0);
+	if (colhdr->head == NULL)
+	{
+		stats.find++;
+		PG_RETURN_NULL();
+	}
+
+	item = (collection *) ELMT_FROM_HH(colhdr->head->hh.tbl, colhdr->head->hh.tbl->tail);
+
+	PG_RETURN_TEXT_P(cstring_to_text(item->key));
+}
+
+Datum
 collection_keys_to_table(PG_FUNCTION_ARGS)
 {
 	typedef struct
@@ -768,4 +851,26 @@ static int
 by_key(const struct collection *a, const struct collection *b)
 {
 	return varstr_cmp(a->key, strlen(a->key), b->key, strlen(b->key), collection_collation);
+}
+
+static collection *
+find_internal(CollectionHeader * colhdr, char *key)
+{
+	collection *item;
+
+	pgstat_report_wait_start(collection_we_find);
+
+	HASH_FIND(hh, colhdr->head, key, strlen(key), item);
+
+	stats.find++;
+	pgstat_report_wait_end();
+
+	if (item == NULL)
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_NO_DATA_FOUND),
+				 errmsg("key \"%s\" not found", key)));
+	}
+
+	return item;
 }

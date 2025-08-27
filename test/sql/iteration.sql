@@ -374,3 +374,53 @@ BEGIN
   RAISE NOTICE 'value: %', value(u);
 END
 $$;
+
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 25';
+  u := add(u, 'aaa', 'Hello World');
+  u := add(u, 'bbb', 'Hello All');
+  u := add(u, 'ccc', 'Hi');
+  RAISE NOTICE 'next_key(bbb): %', next_key(u, 'bbb');
+  RAISE NOTICE 'next_key(ccc): %', next_key(u, 'ccc');
+END
+$$;
+
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 26';
+  u := add(u, 'aaa', 'Hello World');
+  u := add(u, 'bbb', 'Hello All');
+  u := add(u, 'ccc', 'Hi');
+  RAISE NOTICE 'prev_key(bbb): %', prev_key(u, 'bbb');
+  RAISE NOTICE 'prev_key(aaa): %', prev_key(u, 'aaa');
+END
+$$;
+
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 27';
+  u := add(u, 'aaa', 'Hello World');
+  u := add(u, 'bbb', 'Hello All');
+  u := add(u, 'ccc', 'Hi');
+  RAISE NOTICE 'first_key: %', first_key(u);
+END
+$$;
+
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 28';
+  u := add(u, 'aaa', 'Hello World');
+  u := add(u, 'bbb', 'Hello All');
+  u := add(u, 'ccc', 'Hi');
+  RAISE NOTICE 'last_key: %', last_key(u);
+END
+$$;

@@ -64,13 +64,17 @@ CREATE EXTENSION collection;
 | add(collection, text, anyelement)       | collection              | Adds an anyelement item to a collection                                                    |
 | count(collection)                       | int4                    | Returns the number of items in a collection                                                |
 | delete(collection, text)                | collection              | Deletes an item from a collection                                                          |
-| exist(collection, text)                 | text                    | Returns true if a given key exists in the collection                                          |
+| exist(collection, text)                 | text                    | Returns true if a given key exists in the collection                                       |
 | find(collection, text)                  | text                    | Returns a text item from a collection if it exists                                         |
 | find(collection, text, anyelement)      | anyelement              | Returns an anyelement item from a collection if it exists                                  |
 | first(collection)                       | collection              | Sets the collection iterator to the first item                                             |
-| last(collection)                        | collection              | Sets the collection iterator to the last item                                             |
+| last(collection)                        | collection              | Sets the collection iterator to the last item                                              |
 | next(collection)                        | collection              | Sets the collection iterator to the next item                                              |
 | prev(collection)                        | collection              | Sets the collection iterator to the previous item                                          |
+| first_key(collection)                   | collection              | Returns the key of the first item in the collection                                        |
+| last_key(collection)                    | collection              | Returns the key of the last item in the collection                                         |
+| next_key(collection, text)              | collection              | Returns the key of the next item in the collection for the given key                       |
+| prev_key(collection, text)              | collection              | Returns the key of the previous item in the collection for the given key                   |
 | copy(collection)                        | collection              | Returns a copy of a collection without a context switch                                    |
 | sort(collection)                        | collection              | Sorts a collection by the keys in collation order and points to the first item             |
 | isnull(collection)                      | bool                    | Returns true if the current location of the iterator is null                               |
