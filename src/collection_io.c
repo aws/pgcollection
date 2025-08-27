@@ -178,10 +178,26 @@ collection_typmodin(PG_FUNCTION_ARGS)
 
 	if (typmod != -1)
 	{
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("invalid COLLECTION type modifier"),
-				 errdetail("the type cannot have a type modifier")));
+		/*
+		 * There needs to be special handling for BPCHAR For a CHAR passed in
+		 * without a typemod defined, the typmod is still returned as 5
+		 * intentionally based the historical comment in varchar.c. There also
+		 * needs a check to see if there are parenthesis in the string to
+		 * determine if the passed in string is CHAR or CHAR(1).
+		 *
+		 * In backend/utils/adt/varchar.c:
+		 *
+		 * For largely historical reasons, the typmod is VARHDRSZ plus the
+		 * number of characters; there is enough client-side code that knows
+		 * about that that we'd better not change it.
+		 */
+		if (typoid != BPCHAROID ||
+			(typmod != VARHDRSZ + 1 ||
+			 strpbrk(DatumGetCString(elem_values[0]), "()")))
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+					 errmsg("invalid COLLECTION type modifier"),
+					 errdetail("the type cannot have a type modifier")));
 	}
 
 	PG_RETURN_INT32(typoid);

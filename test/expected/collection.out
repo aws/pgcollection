@@ -487,3 +487,11 @@ NOTICE:  Test 28
 NOTICE:  bbb exist: t
 NOTICE:  ccc exist: f
 NOTICE:  <null> exist: f
+DO $$
+DECLARE
+  pgc_char collection('CHAR');
+BEGIN
+  RAISE NOTICE 'Test 29';
+  NULL;
+END $$;
+NOTICE:  Test 29

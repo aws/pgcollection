@@ -401,3 +401,11 @@ BEGIN
   RAISE NOTICE '<null> exist: %', exist(u, null);
 END
 $$;
+
+DO $$
+DECLARE
+  pgc_char collection('CHAR');
+BEGIN
+  RAISE NOTICE 'Test 29';
+  NULL;
+END $$;
