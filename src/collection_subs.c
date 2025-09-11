@@ -235,14 +235,17 @@ collection_subscript_assign(ExprState *state,
 	{
 		colhdr = construct_empty_collection(CurrentMemoryContext);
 		*op->resnull = false;
-
-		colhdr->value_type = workspace->value_type;
-		colhdr->value_type_len = workspace->value_type_len;
-		colhdr->value_byval = workspace->value_byval;
 	}
 	else
 	{
 		colhdr = (CollectionHeader *) DatumGetExpandedCollection(*op->resvalue);
+	}
+
+	if (colhdr->value_type == InvalidOid)
+	{
+		colhdr->value_type = workspace->value_type;
+		colhdr->value_type_len = workspace->value_type_len;
+		colhdr->value_byval = workspace->value_byval;
 	}
 
 	pgstat_report_wait_start(collection_we_assign);

@@ -337,3 +337,15 @@ NOTICE:  Subscript test 22
 ERROR:  key too long
 DETAIL:  Key length 32768 exceeds maximum allowed length 32767
 CONTEXT:  PL/pgSQL function inline_code_block line 11 at assignment
+DO $$
+DECLARE
+  arr_instance1 collection('int4');
+  arr_instance2 collection('int4');
+BEGIN
+  RAISE NOTICE 'Subscript test 23';
+  arr_instance2 := copy(arr_instance1);
+  arr_instance2['A'] := 1;
+  RAISE NOTICE 'Count: %', count(arr_instance2);
+END $$;
+NOTICE:  Subscript test 23
+NOTICE:  Count: 1

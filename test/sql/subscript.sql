@@ -295,3 +295,14 @@ BEGIN
   long_key := repeat('g', 32768);
   result := c[long_key];
 END $$;
+
+DO $$
+DECLARE
+  arr_instance1 collection('int4');
+  arr_instance2 collection('int4');
+BEGIN
+  RAISE NOTICE 'Subscript test 23';
+  arr_instance2 := copy(arr_instance1);
+  arr_instance2['A'] := 1;
+  RAISE NOTICE 'Count: %', count(arr_instance2);
+END $$;
