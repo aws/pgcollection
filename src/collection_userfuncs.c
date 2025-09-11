@@ -94,6 +94,8 @@ collection_add(PG_FUNCTION_ARGS)
 	oldcxt = MemoryContextSwitchTo(colhdr->hdr.eoh_context);
 
 	key = text_to_cstring(PG_GETARG_TEXT_PP(1));
+	VALIDATE_KEY_LENGTH(key);
+
 	item = (collection *) palloc(sizeof(collection));
 	item->key = key;
 
@@ -189,6 +191,7 @@ collection_find(PG_FUNCTION_ARGS)
 	}
 
 	key = text_to_cstring(PG_GETARG_TEXT_PP(1));
+	VALIDATE_KEY_LENGTH(key);
 
 	item = find_internal(colhdr, key);
 
@@ -240,6 +243,7 @@ collection_exist(PG_FUNCTION_ARGS)
 	pgstat_report_wait_start(collection_we_exist);
 
 	key = text_to_cstring(PG_GETARG_TEXT_PP(1));
+	VALIDATE_KEY_LENGTH(key);
 
 	HASH_FIND(hh, colhdr->head, key, strlen(key), item);
 
@@ -275,6 +279,7 @@ collection_delete(PG_FUNCTION_ARGS)
 	if (colhdr->head)
 	{
 		key = text_to_cstring(PG_GETARG_TEXT_PP(1));
+		VALIDATE_KEY_LENGTH(key);
 
 		HASH_FIND(hh, colhdr->head, key, strlen(key), item);
 
@@ -515,6 +520,7 @@ collection_next_key(PG_FUNCTION_ARGS)
 	}
 
 	key = text_to_cstring(PG_GETARG_TEXT_PP(1));
+	VALIDATE_KEY_LENGTH(key);
 
 	item = find_internal(colhdr, key);
 
@@ -542,6 +548,7 @@ collection_prev_key(PG_FUNCTION_ARGS)
 	}
 
 	key = text_to_cstring(PG_GETARG_TEXT_PP(1));
+	VALIDATE_KEY_LENGTH(key);
 
 	item = find_internal(colhdr, key);
 

@@ -1,19 +1,20 @@
 ## pgcollection
 
-pgcollection is a memory optimized data type for PostgreSQL. The primary usage 
+pgcollection is a memory optimized data type for PostgreSQL. The primary usage
 is a high performance data structure inside of plpglsql functions. Like other
 PostgreSQL data types, a collection can be a column of a table, but there are
-no operators. 
+no operators.
 
-A collection is a set of key-value pairs. Each key is a unique string of type 
-`text`. Entries are stored in creation order. A collection can hold an 
-unlimited number of elements, constrained by the memory available to the 
-database. A collection is stored as a PostgreSQL `varlena` limiting the 
-maximum size to 1GB if the structure was persisted to a column in a table. 
+A collection is a set of key-value pairs. Each key is a unique string of type
+`text` with a maximum length of 32,767 characters. Entries are stored in
+creation order. A collection can hold an unlimited number of elements,
+constrained by the memory available to the database. A collection is stored as
+a PostgreSQL `varlena` limiting the maximum size to 1GB if the structure was
+persisted to a column in a table.
 
-The value of an element can be any PostgreSQL type including composite types 
-with a default of type `text`. All elements in a collection must be of the 
-same type. 
+The value of an element can be any PostgreSQL type including composite types
+with a default of type `text`. All elements in a collection must be of the
+same type.
 
 ```sql
 DO

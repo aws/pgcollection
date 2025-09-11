@@ -272,3 +272,26 @@ SET TIME ZONE 'UTC';
 SELECT test_timestamps();
 
 DROP FUNCTION test_timestamps();
+
+DO $$
+DECLARE
+  c collection;
+  long_key text;
+BEGIN
+  RAISE NOTICE 'Subscript test 21';
+  long_key := repeat('b', 32768);
+  c[long_key] := 'test_value';
+END $$;
+
+DO $$
+DECLARE
+  c collection;
+  long_key text;
+  result text;
+BEGIN
+  RAISE NOTICE 'Subscript test 22';
+  c['valid_key'] := 'test_value';
+  
+  long_key := repeat('g', 32768);
+  result := c[long_key];
+END $$;

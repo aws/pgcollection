@@ -495,3 +495,73 @@ BEGIN
   NULL;
 END $$;
 NOTICE:  Test 29
+DO $$
+DECLARE
+  c collection;
+  long_key text;
+BEGIN
+  RAISE NOTICE 'Test 30';
+  long_key := repeat('a', 32768);
+  c := add(c, long_key, 'test_value');
+END $$;
+NOTICE:  Test 30
+ERROR:  key too long
+DETAIL:  Key length 32768 exceeds maximum allowed length 32767
+CONTEXT:  PL/pgSQL function inline_code_block line 8 at assignment
+DO $$
+DECLARE
+  c collection;
+  max_key text;
+BEGIN
+  RAISE NOTICE 'Test 31';
+  max_key := repeat('c', 32767);
+  c := add(c, max_key, 'test_value');
+  RAISE NOTICE 'Success: Key with length 32767 accepted';
+END $$;
+NOTICE:  Test 31
+NOTICE:  Success: Key with length 32767 accepted
+DO $$
+DECLARE
+  c collection;
+  long_key text;
+BEGIN
+  RAISE NOTICE 'Test 32';
+  c := add(c, 'valid_key', 'test_value');
+  
+  long_key := repeat('d', 32768);
+  RAISE NOTICE 'find: %', find(c, long_key);
+END $$;
+NOTICE:  Test 32
+ERROR:  key too long
+DETAIL:  Key length 32768 exceeds maximum allowed length 32767
+CONTEXT:  PL/pgSQL function inline_code_block line 10 at RAISE
+DO $$
+DECLARE
+  c collection;
+  long_key text;
+BEGIN
+  RAISE NOTICE 'Test 33';
+  c := add(c, 'valid_key', 'test_value');
+  
+  long_key := repeat('e', 32768);
+  RAISE NOTICE 'exist: %', exist(c, long_key);
+END $$;
+NOTICE:  Test 33
+ERROR:  key too long
+DETAIL:  Key length 32768 exceeds maximum allowed length 32767
+CONTEXT:  PL/pgSQL function inline_code_block line 10 at RAISE
+DO $$
+DECLARE
+  c collection;
+  long_key text;
+BEGIN
+  RAISE NOTICE 'Test 34';
+  c := add(c, 'valid_key', 'test_value');
+  
+  long_key := repeat('f', 32768);
+  c := delete(c, long_key);
+END $$;
+NOTICE:  Test 34
+ERROR:  key too long
+DETAIL:  Key length 32768 exceeds maximum allowed length 32767
+CONTEXT:  PL/pgSQL function inline_code_block line 10 at assignment

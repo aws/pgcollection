@@ -36,6 +36,18 @@
 
 #include "collection.h"
 
+#define VALIDATE_KEY_LENGTH_WITH_WAIT_END(key) \
+	do { \
+		if (strlen(key) > INT16_MAX) { \
+			pgstat_report_wait_end(); \
+			ereport(ERROR, \
+					(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED), \
+					 errmsg("key too long"), \
+					 errdetail("Key length %zu exceeds maximum allowed length %d", \
+							   strlen(key), INT16_MAX))); \
+		} \
+	} while (0)
+
 typedef struct CollectionSubWorkspace
 {
 	/* Values determined during expression compilation */
@@ -140,6 +152,7 @@ collection_subscript_fetch(ExprState *state,
 	pgstat_report_wait_start(collection_we_fetch);
 
 	key = text_to_cstring(DatumGetTextPP(sbsrefstate->upperindex[0]));
+	VALIDATE_KEY_LENGTH(key);
 
 	HASH_FIND(hh, colhdr->head, key, strlen(key), item);
 
@@ -248,6 +261,7 @@ collection_subscript_assign(ExprState *state,
 	oldcxt = MemoryContextSwitchTo(colhdr->hdr.eoh_context);
 
 	key = text_to_cstring(DatumGetTextPP(sbsrefstate->upperindex[0]));
+	VALIDATE_KEY_LENGTH_WITH_WAIT_END(key);
 
 	item = (collection *) palloc(sizeof(collection));
 	item->key = key;

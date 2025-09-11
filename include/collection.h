@@ -39,6 +39,16 @@
 
 #define COLLECTION_MAGIC 8675309	/* ID for debugging crosschecks */
 
+#define VALIDATE_KEY_LENGTH(key) \
+	do { \
+		if (strlen(key) > INT16_MAX) \
+			ereport(ERROR, \
+					(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED), \
+					 errmsg("key too long"), \
+					 errdetail("Key length %zu exceeds maximum allowed length %d", \
+							   strlen(key), INT16_MAX))); \
+	} while (0)
+
 typedef struct collection
 {
 	char	   *key;
