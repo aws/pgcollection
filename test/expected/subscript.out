@@ -91,7 +91,8 @@ BEGIN
 END
 $$;
 NOTICE:  Subscript test 7
-NOTICE:  value: <NULL>
+ERROR:  key "ddd" not found
+CONTEXT:  PL/pgSQL function inline_code_block line 10 at RAISE
 DO
 $$
 DECLARE
@@ -252,11 +253,11 @@ DECLARE
 BEGIN
   RAISE NOTICE 'Subscript test 17';
   u['aaa'] := NULL::bytea;
+  RAISE NOTICE 'count: %', count(u);
 END
 $$;
 NOTICE:  Subscript test 17
-ERROR:  collection value in assignment must not be null
-CONTEXT:  PL/pgSQL function inline_code_block line 6 at assignment
+NOTICE:  count: 1
 DO $$
 DECLARE
   n collection('numeric');
@@ -307,3 +308,44 @@ NOTICE:  n[O]: Mon Jan 15 08:30:45.123456 2024 UTC
 (1 row)
 
 DROP FUNCTION test_timestamps();
+DO $$
+DECLARE
+  c collection;
+  long_key text;
+BEGIN
+  RAISE NOTICE 'Subscript test 21';
+  long_key := repeat('b', 32768);
+  c[long_key] := 'test_value';
+END $$;
+NOTICE:  Subscript test 21
+ERROR:  key too long
+DETAIL:  Key length 32768 exceeds maximum allowed length 32767
+CONTEXT:  PL/pgSQL function inline_code_block line 8 at assignment
+DO $$
+DECLARE
+  c collection;
+  long_key text;
+  result text;
+BEGIN
+  RAISE NOTICE 'Subscript test 22';
+  c['valid_key'] := 'test_value';
+  
+  long_key := repeat('g', 32768);
+  result := c[long_key];
+END $$;
+NOTICE:  Subscript test 22
+ERROR:  key too long
+DETAIL:  Key length 32768 exceeds maximum allowed length 32767
+CONTEXT:  PL/pgSQL function inline_code_block line 11 at assignment
+DO $$
+DECLARE
+  arr_instance1 collection('int4');
+  arr_instance2 collection('int4');
+BEGIN
+  RAISE NOTICE 'Subscript test 23';
+  arr_instance2 := copy(arr_instance1);
+  arr_instance2['A'] := 1;
+  RAISE NOTICE 'Count: %', count(arr_instance2);
+END $$;
+NOTICE:  Subscript test 23
+NOTICE:  Count: 1

@@ -36,6 +36,18 @@
 
 #include "collection.h"
 
+#define VALIDATE_KEY_LENGTH_WITH_WAIT_END(key) \
+	do { \
+		if (strlen(key) > INT16_MAX) { \
+			pgstat_report_wait_end(); \
+			ereport(ERROR, \
+					(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED), \
+					 errmsg("key too long"), \
+					 errdetail("Key length %zu exceeds maximum allowed length %d", \
+							   strlen(key), INT16_MAX))); \
+		} \
+	} while (0)
+
 typedef struct CollectionSubWorkspace
 {
 	/* Values determined during expression compilation */
@@ -140,10 +152,19 @@ collection_subscript_fetch(ExprState *state,
 	pgstat_report_wait_start(collection_we_fetch);
 
 	key = text_to_cstring(DatumGetTextPP(sbsrefstate->upperindex[0]));
+	VALIDATE_KEY_LENGTH(key);
 
 	HASH_FIND(hh, colhdr->head, key, strlen(key), item);
 
 	if (item == NULL)
+	{
+		stats.find++;
+		pgstat_report_wait_end();
+		ereport(ERROR,
+				(errcode(ERRCODE_NO_DATA_FOUND),
+				 errmsg("key \"%s\" not found", key)));
+	}
+	else if (item->isnull)
 		value = (Datum) 0;
 	else
 	{
@@ -161,6 +182,8 @@ collection_subscript_fetch(ExprState *state,
 			}
 			else
 			{
+				stats.find++;
+				pgstat_report_wait_end();
 				ereport(ERROR,
 						(errcode(ERRCODE_DATATYPE_MISMATCH),
 						 errmsg("Incompatible value data type"),
@@ -208,24 +231,21 @@ collection_subscript_assign(ExprState *state,
 				(errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
 				 errmsg("collection subscript in assignment must not be null")));
 
-	/* Check for null assignment */
-	if (sbsrefstate->replacenull)
-		ereport(ERROR,
-				(errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
-				 errmsg("collection value in assignment must not be null")));
-
 	if (*op->resnull)
 	{
 		colhdr = construct_empty_collection(CurrentMemoryContext);
 		*op->resnull = false;
-
-		colhdr->value_type = workspace->value_type;
-		colhdr->value_type_len = workspace->value_type_len;
-		colhdr->value_byval = workspace->value_byval;
 	}
 	else
 	{
 		colhdr = (CollectionHeader *) DatumGetExpandedCollection(*op->resvalue);
+	}
+
+	if (colhdr->value_type == InvalidOid)
+	{
+		colhdr->value_type = workspace->value_type;
+		colhdr->value_type_len = workspace->value_type_len;
+		colhdr->value_byval = workspace->value_byval;
 	}
 
 	pgstat_report_wait_start(collection_we_assign);
@@ -244,10 +264,20 @@ collection_subscript_assign(ExprState *state,
 	oldcxt = MemoryContextSwitchTo(colhdr->hdr.eoh_context);
 
 	key = text_to_cstring(DatumGetTextPP(sbsrefstate->upperindex[0]));
+	VALIDATE_KEY_LENGTH_WITH_WAIT_END(key);
 
 	item = (collection *) palloc(sizeof(collection));
 	item->key = key;
-	item->value = datumCopy(sbsrefstate->replacevalue, workspace->value_byval, workspace->value_type_len);
+
+
+	/* Check for null assignment */
+	if (sbsrefstate->replacenull)
+		item->isnull = true;
+	else
+	{
+		item->value = datumCopy(sbsrefstate->replacevalue, workspace->value_byval, workspace->value_type_len);
+		item->isnull = false;
+	}
 
 	HASH_REPLACE(hh, colhdr->head, key[0], strlen(key), item, replaced_item);
 

@@ -37,6 +37,7 @@
 PG_FUNCTION_INFO_V1(collection_add);
 PG_FUNCTION_INFO_V1(collection_count);
 PG_FUNCTION_INFO_V1(collection_find);
+PG_FUNCTION_INFO_V1(collection_exist);
 PG_FUNCTION_INFO_V1(collection_delete);
 PG_FUNCTION_INFO_V1(collection_sort);
 PG_FUNCTION_INFO_V1(collection_copy);
@@ -52,14 +53,21 @@ PG_FUNCTION_INFO_V1(collection_keys_to_table);
 PG_FUNCTION_INFO_V1(collection_values_to_table);
 PG_FUNCTION_INFO_V1(collection_to_table);
 
+PG_FUNCTION_INFO_V1(collection_next_key);
+PG_FUNCTION_INFO_V1(collection_prev_key);
+PG_FUNCTION_INFO_V1(collection_first_key);
+PG_FUNCTION_INFO_V1(collection_last_key);
+
 PG_FUNCTION_INFO_V1(collection_value_type);
 PG_FUNCTION_INFO_V1(collection_stats);
 PG_FUNCTION_INFO_V1(collection_stats_reset);
 
 StatsCounters stats;
 
-static int	by_key(const struct collection *a, const struct collection *b);
 static Oid	collection_collation = DEFAULT_COLLATION_OID;
+
+static int	by_key(const struct collection *a, const struct collection *b);
+static collection * find_internal(CollectionHeader * colhdr, char *key);
 
 Datum
 collection_add(PG_FUNCTION_ARGS)
@@ -74,10 +82,10 @@ collection_add(PG_FUNCTION_ARGS)
 	int16		argtypelen;
 	bool		argtypebyval;
 
-	if (PG_ARGISNULL(1) || PG_ARGISNULL(2))
+	if (PG_ARGISNULL(1))
 		ereport(ERROR,
 				(errcode(ERRCODE_DATATYPE_MISMATCH),
-				 errmsg("Key and value must not be null")));
+				 errmsg("Key must not be null")));
 
 	colhdr = fetch_collection(fcinfo, 0);
 
@@ -86,7 +94,10 @@ collection_add(PG_FUNCTION_ARGS)
 	oldcxt = MemoryContextSwitchTo(colhdr->hdr.eoh_context);
 
 	key = text_to_cstring(PG_GETARG_TEXT_PP(1));
-	value = PG_GETARG_DATUM(2);
+	VALIDATE_KEY_LENGTH(key);
+
+	item = (collection *) palloc(sizeof(collection));
+	item->key = key;
 
 	argtype = get_fn_expr_argtype(fcinfo->flinfo, 2);
 	get_typlenbyval(argtype, &argtypelen, &argtypebyval);
@@ -114,9 +125,15 @@ collection_add(PG_FUNCTION_ARGS)
 		}
 	}
 
-	item = (collection *) palloc(sizeof(collection));
-	item->key = key;
-	item->value = datumCopy(value, argtypebyval, argtypelen);
+	if (PG_ARGISNULL(2))
+		item->isnull = true;
+	else
+	{
+		value = PG_GETARG_DATUM(2);
+
+		item->value = datumCopy(value, argtypebyval, argtypelen);
+		item->isnull = false;
+	}
 
 	HASH_REPLACE(hh, colhdr->head, key[0], strlen(key), item, replaced_item);
 
@@ -163,7 +180,7 @@ collection_find(PG_FUNCTION_ARGS)
 	Oid			rettype;
 	CollectionHeader *colhdr;
 
-	if (PG_ARGISNULL(1))
+	if (PG_ARGISNULL(0) || PG_ARGISNULL(1))
 		PG_RETURN_NULL();
 
 	colhdr = fetch_collection(fcinfo, 0);
@@ -173,13 +190,12 @@ collection_find(PG_FUNCTION_ARGS)
 		PG_RETURN_NULL();
 	}
 
-	pgstat_report_wait_start(collection_we_find);
-
 	key = text_to_cstring(PG_GETARG_TEXT_PP(1));
+	VALIDATE_KEY_LENGTH(key);
 
-	HASH_FIND(hh, colhdr->head, key, strlen(key), item);
+	item = find_internal(colhdr, key);
 
-	if (item == NULL)
+	if (item->isnull)
 	{
 		stats.find++;
 		pgstat_report_wait_end();
@@ -205,6 +221,46 @@ collection_find(PG_FUNCTION_ARGS)
 }
 
 Datum
+collection_exist(PG_FUNCTION_ARGS)
+{
+	char	   *key;
+	collection *item;
+	CollectionHeader *colhdr;
+
+	if (PG_ARGISNULL(0) || PG_ARGISNULL(1))
+	{
+		stats.exist++;
+		PG_RETURN_BOOL(false);
+	}
+
+	colhdr = fetch_collection(fcinfo, 0);
+	if (colhdr->head == NULL)
+	{
+		stats.exist++;
+		PG_RETURN_BOOL(false);
+	}
+
+	pgstat_report_wait_start(collection_we_exist);
+
+	key = text_to_cstring(PG_GETARG_TEXT_PP(1));
+	VALIDATE_KEY_LENGTH(key);
+
+	HASH_FIND(hh, colhdr->head, key, strlen(key), item);
+
+	if (item == NULL)
+	{
+		stats.exist++;
+		pgstat_report_wait_end();
+		PG_RETURN_BOOL(false);
+	}
+
+	stats.exist++;
+	pgstat_report_wait_end();
+
+	PG_RETURN_BOOL(true);
+}
+
+Datum
 collection_delete(PG_FUNCTION_ARGS)
 {
 	char	   *key;
@@ -223,6 +279,7 @@ collection_delete(PG_FUNCTION_ARGS)
 	if (colhdr->head)
 	{
 		key = text_to_cstring(PG_GETARG_TEXT_PP(1));
+		VALIDATE_KEY_LENGTH(key);
 
 		HASH_FIND(hh, colhdr->head, key, strlen(key), item);
 
@@ -313,7 +370,9 @@ collection_copy(PG_FUNCTION_ARGS)
 
 			item = (collection *) palloc(sizeof(collection));
 			item->key = key;
-			item->value = datumCopy(iter->value, colhdr->value_byval, colhdr->value_type_len);
+			item->isnull = iter->isnull;
+			if (!iter->isnull)
+				item->value = datumCopy(iter->value, colhdr->value_byval, colhdr->value_type_len);
 
 			HASH_ADD(hh, copyhdr->head, key[0], strlen(key), item);
 
@@ -357,6 +416,9 @@ collection_value(PG_FUNCTION_ARGS)
 	colhdr = fetch_collection(fcinfo, 0);
 
 	if (colhdr->current == NULL)
+		PG_RETURN_NULL();
+
+	if (colhdr->current->isnull)
 		PG_RETURN_NULL();
 
 	pgstat_report_wait_start(collection_we_value);
@@ -440,6 +502,95 @@ collection_last(PG_FUNCTION_ARGS)
 
 
 	PG_RETURN_DATUM(EOHPGetRWDatum(&colhdr->hdr));
+}
+
+Datum
+collection_next_key(PG_FUNCTION_ARGS)
+{
+	char	   *key;
+	collection *item;
+	collection *next;
+	CollectionHeader *colhdr;
+
+	colhdr = fetch_collection(fcinfo, 0);
+	if (colhdr->head == NULL)
+	{
+		stats.find++;
+		PG_RETURN_NULL();
+	}
+
+	key = text_to_cstring(PG_GETARG_TEXT_PP(1));
+	VALIDATE_KEY_LENGTH(key);
+
+	item = find_internal(colhdr, key);
+
+	next = (collection *) item->hh.next;
+
+	if (next == NULL)
+		PG_RETURN_NULL();
+
+	PG_RETURN_TEXT_P(cstring_to_text(next->key));
+}
+
+Datum
+collection_prev_key(PG_FUNCTION_ARGS)
+{
+	char	   *key;
+	collection *item;
+	collection *prev;
+	CollectionHeader *colhdr;
+
+	colhdr = fetch_collection(fcinfo, 0);
+	if (colhdr->head == NULL)
+	{
+		stats.find++;
+		PG_RETURN_NULL();
+	}
+
+	key = text_to_cstring(PG_GETARG_TEXT_PP(1));
+	VALIDATE_KEY_LENGTH(key);
+
+	item = find_internal(colhdr, key);
+
+	prev = (collection *) item->hh.prev;
+
+	if (prev == NULL)
+		PG_RETURN_NULL();
+
+	PG_RETURN_TEXT_P(cstring_to_text(prev->key));
+}
+
+Datum
+collection_first_key(PG_FUNCTION_ARGS)
+{
+	CollectionHeader *colhdr;
+
+	colhdr = fetch_collection(fcinfo, 0);
+	if (colhdr->head == NULL)
+	{
+		stats.find++;
+		PG_RETURN_NULL();
+	}
+
+	PG_RETURN_TEXT_P(cstring_to_text(colhdr->head->key));
+}
+
+Datum
+collection_last_key(PG_FUNCTION_ARGS)
+{
+	collection *item;
+	CollectionHeader *colhdr;
+
+	colhdr = fetch_collection(fcinfo, 0);
+	if (colhdr->head == NULL)
+	{
+		stats.find++;
+		PG_RETURN_NULL();
+	}
+
+	item = (collection *) ELMT_FROM_HH(colhdr->head->hh.tbl, colhdr->head->hh.tbl->tail);
+
+	PG_RETURN_TEXT_P(cstring_to_text(item->key));
 }
 
 Datum
@@ -538,11 +689,18 @@ collection_values_to_table(PG_FUNCTION_ARGS)
 
 	if (fctx->cur != NULL)
 	{
-		Datum		value = datumCopy(fctx->cur->value, fctx->typebyval, fctx->typelen);
+		if (fctx->cur->isnull)
+		{
+			fctx->cur = fctx->cur->hh.next;
+			SRF_RETURN_NEXT_NULL(funcctx);
+		}
+		else
+		{
+			Datum		value = datumCopy(fctx->cur->value, fctx->typebyval, fctx->typelen);
 
-		fctx->cur = fctx->cur->hh.next;
-
-		SRF_RETURN_NEXT(funcctx, value);
+			fctx->cur = fctx->cur->hh.next;
+			SRF_RETURN_NEXT(funcctx, value);
+		}
 	}
 	else
 	{
@@ -623,7 +781,11 @@ collection_to_table(PG_FUNCTION_ARGS)
 		HeapTuple	tuple;
 
 		values[0] = CStringGetTextDatum(fctx->cur->key);
-		values[1] = datumCopy(fctx->cur->value, fctx->typebyval, fctx->typelen);
+
+		if (fctx->cur->isnull)
+			nulls[1] = true;
+		else
+			values[1] = datumCopy(fctx->cur->value, fctx->typebyval, fctx->typelen);
 
 		tuple = heap_form_tuple(fctx->tupdesc, values, nulls);
 
@@ -657,7 +819,7 @@ collection_stats(PG_FUNCTION_ARGS)
 {
 	Datum		result;
 	TupleDesc	tupleDesc;
-	char	   *values[5];
+	char	   *values[6];
 	int			j;
 	HeapTuple	tuple;
 
@@ -670,6 +832,7 @@ collection_stats(PG_FUNCTION_ARGS)
 	values[j++] = psprintf(INT64_FORMAT, (int64) stats.delete);
 	values[j++] = psprintf(INT64_FORMAT, (int64) stats.find);
 	values[j++] = psprintf(INT64_FORMAT, (int64) stats.sort);
+	values[j++] = psprintf(INT64_FORMAT, (int64) stats.exist);
 
 	tuple = BuildTupleFromCStrings(TupleDescGetAttInMetadata(tupleDesc),
 								   values);
@@ -685,6 +848,7 @@ collection_stats_reset(PG_FUNCTION_ARGS)
 	stats.context_switch = 0;
 	stats.delete = 0;
 	stats.find = 0;
+	stats.exist = 0;
 	stats.sort = 0;
 
 	PG_RETURN_VOID();
@@ -694,4 +858,26 @@ static int
 by_key(const struct collection *a, const struct collection *b)
 {
 	return varstr_cmp(a->key, strlen(a->key), b->key, strlen(b->key), collection_collation);
+}
+
+static collection *
+find_internal(CollectionHeader * colhdr, char *key)
+{
+	collection *item;
+
+	pgstat_report_wait_start(collection_we_find);
+
+	HASH_FIND(hh, colhdr->head, key, strlen(key), item);
+
+	stats.find++;
+	pgstat_report_wait_end();
+
+	if (item == NULL)
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_NO_DATA_FOUND),
+				 errmsg("key \"%s\" not found", key)));
+	}
+
+	return item;
 }

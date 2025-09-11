@@ -129,7 +129,7 @@ BEGIN
 END
 $$;
 NOTICE:  Test 10
-ERROR:  Key and value must not be null
+ERROR:  Key must not be null
 CONTEXT:  PL/pgSQL function inline_code_block line 7 at assignment
 DO $$
 DECLARE
@@ -142,8 +142,7 @@ BEGIN
 END
 $$;
 NOTICE:  Test 11
-ERROR:  Key and value must not be null
-CONTEXT:  PL/pgSQL function inline_code_block line 7 at assignment
+NOTICE:  count: 2
 DO $$
 DECLARE
   u   collection;
@@ -178,7 +177,8 @@ BEGIN
 END
 $$;
 NOTICE:  Test 14
-NOTICE:  find: <NULL>
+ERROR:  key "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" not found
+CONTEXT:  PL/pgSQL function inline_code_block line 8 at RAISE
 DO $$
 DECLARE
   u   collection;
@@ -333,6 +333,12 @@ SELECT add(add(null::collection, 'aaa', '1999-12-31'::date),'bbb', '2000-01-01':
  {"value_type": "pg_catalog.date", "entries": {"aaa": "12-31-1999", "bbb": "01-01-2000"}}
 (1 row)
 
+SELECT add(add(null::collection, 'aaa', '1999-12-31'::date),'bbb', null::date);
+                                       add                                        
+----------------------------------------------------------------------------------
+ {"value_type": "pg_catalog.date", "entries": {"aaa": "12-31-1999", "bbb": null}}
+(1 row)
+
 SELECT '{"value_type": "text", "entries": {"aaa": "Hello World"}'::collection;
 ERROR:  Invalid format
 LINE 1: SELECT '{"value_type": "text", "entries": {"aaa": "Hello Wor...
@@ -380,9 +386,9 @@ $$;
 NOTICE:  Test 22
 NOTICE:  count: u(2), v(3)
 SELECT * FROM collection_stats;
- add | context_switch | delete | find | sort 
------+----------------+--------+------+------
-   3 |              1 |      0 |    0 |    0
+ add | context_switch | delete | find | sort | exist 
+-----+----------------+--------+------+------+-------
+   3 |              1 |      0 |    0 |    0 |     0
 (1 row)
 
 CREATE TABLE collections_test (c1 int, c2 collection);
@@ -464,3 +470,98 @@ ERROR:  invalid COLLECTION type modifier
 LINE 3:   n collection('numeric(8,2)');
             ^
 DETAIL:  the type cannot have a type modifier
+DO $$
+DECLARE
+  u   collection;
+BEGIN
+  RAISE NOTICE 'Test 28';
+  u := add(u, 'aaa', 'Hello World'::text);
+  u := add(u, 'bbb', 'Hello All'::text);
+
+  RAISE NOTICE 'bbb exist: %', exist(u, 'bbb');
+  RAISE NOTICE 'ccc exist: %', exist(u, 'ccc');
+  RAISE NOTICE '<null> exist: %', exist(u, null);
+END
+$$;
+NOTICE:  Test 28
+NOTICE:  bbb exist: t
+NOTICE:  ccc exist: f
+NOTICE:  <null> exist: f
+DO $$
+DECLARE
+  pgc_char collection('CHAR');
+BEGIN
+  RAISE NOTICE 'Test 29';
+  NULL;
+END $$;
+NOTICE:  Test 29
+DO $$
+DECLARE
+  c collection;
+  long_key text;
+BEGIN
+  RAISE NOTICE 'Test 30';
+  long_key := repeat('a', 32768);
+  c := add(c, long_key, 'test_value');
+END $$;
+NOTICE:  Test 30
+ERROR:  key too long
+DETAIL:  Key length 32768 exceeds maximum allowed length 32767
+CONTEXT:  PL/pgSQL function inline_code_block line 8 at assignment
+DO $$
+DECLARE
+  c collection;
+  max_key text;
+BEGIN
+  RAISE NOTICE 'Test 31';
+  max_key := repeat('c', 32767);
+  c := add(c, max_key, 'test_value');
+  RAISE NOTICE 'Success: Key with length 32767 accepted';
+END $$;
+NOTICE:  Test 31
+NOTICE:  Success: Key with length 32767 accepted
+DO $$
+DECLARE
+  c collection;
+  long_key text;
+BEGIN
+  RAISE NOTICE 'Test 32';
+  c := add(c, 'valid_key', 'test_value');
+  
+  long_key := repeat('d', 32768);
+  RAISE NOTICE 'find: %', find(c, long_key);
+END $$;
+NOTICE:  Test 32
+ERROR:  key too long
+DETAIL:  Key length 32768 exceeds maximum allowed length 32767
+CONTEXT:  PL/pgSQL function inline_code_block line 10 at RAISE
+DO $$
+DECLARE
+  c collection;
+  long_key text;
+BEGIN
+  RAISE NOTICE 'Test 33';
+  c := add(c, 'valid_key', 'test_value');
+  
+  long_key := repeat('e', 32768);
+  RAISE NOTICE 'exist: %', exist(c, long_key);
+END $$;
+NOTICE:  Test 33
+ERROR:  key too long
+DETAIL:  Key length 32768 exceeds maximum allowed length 32767
+CONTEXT:  PL/pgSQL function inline_code_block line 10 at RAISE
+DO $$
+DECLARE
+  c collection;
+  long_key text;
+BEGIN
+  RAISE NOTICE 'Test 34';
+  c := add(c, 'valid_key', 'test_value');
+  
+  long_key := repeat('f', 32768);
+  c := delete(c, long_key);
+END $$;
+NOTICE:  Test 34
+ERROR:  key too long
+DETAIL:  Key length 32768 exceeds maximum allowed length 32767
+CONTEXT:  PL/pgSQL function inline_code_block line 10 at assignment

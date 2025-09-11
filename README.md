@@ -1,19 +1,20 @@
 ## pgcollection
 
-pgcollection is a memory optimized data type for PostgreSQL. The primary usage 
+pgcollection is a memory optimized data type for PostgreSQL. The primary usage
 is a high performance data structure inside of plpglsql functions. Like other
 PostgreSQL data types, a collection can be a column of a table, but there are
-no operators. 
+no operators.
 
-A collection is a set of key-value pairs. Each key is a unique string of type 
-`text`. Entries are stored in creation order. A collection can hold an 
-unlimited number of elements, constrained by the memory available to the 
-database. A collection is stored as a PostgreSQL `varlena` limiting the 
-maximum size to 1GB if the structure was persisted to a column in a table. 
+A collection is a set of key-value pairs. Each key is a unique string of type
+`text` with a maximum length of 32,767 characters. Entries are stored in
+creation order. A collection can hold an unlimited number of elements,
+constrained by the memory available to the database. A collection is stored as
+a PostgreSQL `varlena` limiting the maximum size to 1GB if the structure was
+persisted to a column in a table.
 
-The value of an element can be any PostgreSQL type including composite types 
-with a default of type `text`. All elements in a collection must be of the 
-same type. 
+The value of an element can be any PostgreSQL type including composite types
+with a default of type `text`. All elements in a collection must be of the
+same type.
 
 ```sql
 DO
@@ -64,12 +65,17 @@ CREATE EXTENSION collection;
 | add(collection, text, anyelement)       | collection              | Adds an anyelement item to a collection                                                    |
 | count(collection)                       | int4                    | Returns the number of items in a collection                                                |
 | delete(collection, text)                | collection              | Deletes an item from a collection                                                          |
+| exist(collection, text)                 | text                    | Returns true if a given key exists in the collection                                       |
 | find(collection, text)                  | text                    | Returns a text item from a collection if it exists                                         |
 | find(collection, text, anyelement)      | anyelement              | Returns an anyelement item from a collection if it exists                                  |
 | first(collection)                       | collection              | Sets the collection iterator to the first item                                             |
-| last(collection)                        | collection              | Sets the collection iterator to the last item                                             |
+| last(collection)                        | collection              | Sets the collection iterator to the last item                                              |
 | next(collection)                        | collection              | Sets the collection iterator to the next item                                              |
-| prev(collection)                        | collection              | Stes the collection iterator to the previous item                                          |
+| prev(collection)                        | collection              | Sets the collection iterator to the previous item                                          |
+| first_key(collection)                   | collection              | Returns the key of the first item in the collection                                        |
+| last_key(collection)                    | collection              | Returns the key of the last item in the collection                                         |
+| next_key(collection, text)              | collection              | Returns the key of the next item in the collection for the given key                       |
+| prev_key(collection, text)              | collection              | Returns the key of the previous item in the collection for the given key                   |
 | copy(collection)                        | collection              | Returns a copy of a collection without a context switch                                    |
 | sort(collection)                        | collection              | Sorts a collection by the keys in collation order and points to the first item             |
 | isnull(collection)                      | bool                    | Returns true if the current location of the iterator is null                               |
@@ -82,6 +88,27 @@ CREATE EXTENSION collection;
 | to_table(collection)                    | TABLE(text, text)       | Returns all of the keys and values as text in the collection                               |
 | to_table(collection, anyelement)        | TABLE(text, anyelement) | Returns all of the keys and values as anyelement in the collection                         |
 | value_type(collection)                  | regtype                 | Returns the data type of the elements within the collection                                |
+
+## Finding an Item in a Collection
+
+The `find` function comes in two different variants. The first takes two
+parameters and returns the value as a `text` type. The second takes a third
+parameter of the pseudo-type `anyelement` which is used to determine the return
+type. If `find` is called with a key that has not been defined in the
+collection, a `no_data_found` error is thrown.
+
+```sql
+DO
+$$
+DECLARE
+  c1   collection('date');
+BEGIN
+  c1 := add(c1, 'k1', '1999-12-31'::date);
+
+  RAISE NOTICE 'The value of c1 is %', find(c1, 'k1', null::date);
+END
+$$;
+```
 
 ## Using Subscripts
 

@@ -290,6 +290,8 @@ SELECT '{"value_type": "text", "entries": {"aaa": "Hello World", "bbb": "Hello A
 
 SELECT add(add(null::collection, 'aaa', '1999-12-31'::date),'bbb', '2000-01-01'::date);
 
+SELECT add(add(null::collection, 'aaa', '1999-12-31'::date),'bbb', null::date);
+
 SELECT '{"value_type": "text", "entries": {"aaa": "Hello World"}'::collection;
 
 SELECT '{"value_type": "text", "entry": {"aaa": "Hello World"}}'::collection;
@@ -384,4 +386,83 @@ DECLARE
 BEGIN
   RAISE NOTICE 'Test 27';
   n['aaa'] := 3.14::numeric;
+END $$;
+
+DO $$
+DECLARE
+  u   collection;
+BEGIN
+  RAISE NOTICE 'Test 28';
+  u := add(u, 'aaa', 'Hello World'::text);
+  u := add(u, 'bbb', 'Hello All'::text);
+
+  RAISE NOTICE 'bbb exist: %', exist(u, 'bbb');
+  RAISE NOTICE 'ccc exist: %', exist(u, 'ccc');
+  RAISE NOTICE '<null> exist: %', exist(u, null);
+END
+$$;
+
+DO $$
+DECLARE
+  pgc_char collection('CHAR');
+BEGIN
+  RAISE NOTICE 'Test 29';
+  NULL;
+END $$;
+
+DO $$
+DECLARE
+  c collection;
+  long_key text;
+BEGIN
+  RAISE NOTICE 'Test 30';
+  long_key := repeat('a', 32768);
+  c := add(c, long_key, 'test_value');
+END $$;
+
+DO $$
+DECLARE
+  c collection;
+  max_key text;
+BEGIN
+  RAISE NOTICE 'Test 31';
+  max_key := repeat('c', 32767);
+  c := add(c, max_key, 'test_value');
+  RAISE NOTICE 'Success: Key with length 32767 accepted';
+END $$;
+
+DO $$
+DECLARE
+  c collection;
+  long_key text;
+BEGIN
+  RAISE NOTICE 'Test 32';
+  c := add(c, 'valid_key', 'test_value');
+  
+  long_key := repeat('d', 32768);
+  RAISE NOTICE 'find: %', find(c, long_key);
+END $$;
+
+DO $$
+DECLARE
+  c collection;
+  long_key text;
+BEGIN
+  RAISE NOTICE 'Test 33';
+  c := add(c, 'valid_key', 'test_value');
+  
+  long_key := repeat('e', 32768);
+  RAISE NOTICE 'exist: %', exist(c, long_key);
+END $$;
+
+DO $$
+DECLARE
+  c collection;
+  long_key text;
+BEGIN
+  RAISE NOTICE 'Test 34';
+  c := add(c, 'valid_key', 'test_value');
+  
+  long_key := repeat('f', 32768);
+  c := delete(c, long_key);
 END $$;

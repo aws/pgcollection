@@ -39,10 +39,21 @@
 
 #define COLLECTION_MAGIC 8675309	/* ID for debugging crosschecks */
 
+#define VALIDATE_KEY_LENGTH(key) \
+	do { \
+		if (strlen(key) > INT16_MAX) \
+			ereport(ERROR, \
+					(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED), \
+					 errmsg("key too long"), \
+					 errdetail("Key length %zu exceeds maximum allowed length %d", \
+							   strlen(key), INT16_MAX))); \
+	} while (0)
+
 typedef struct collection
 {
 	char	   *key;
 	Datum		value;
+	bool		isnull;
 	UT_hash_handle hh;
 }			collection;
 
@@ -83,6 +94,7 @@ typedef struct StatsCounters
 	int64		context_switch;
 	int64		delete;
 	int64		find;
+	int64		exist;
 	int64		sort;
 }			StatsCounters;
 
@@ -106,6 +118,7 @@ extern uint32 collection_we_cast;
 extern uint32 collection_we_add;
 extern uint32 collection_we_count;
 extern uint32 collection_we_find;
+extern uint32 collection_we_exist;
 extern uint32 collection_we_delete;
 extern uint32 collection_we_sort;
 extern uint32 collection_we_copy;

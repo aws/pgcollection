@@ -146,3 +146,21 @@ $$;
 SELECT * FROM collection_regress ORDER BY col1;
 
 DROP TABLE collection_regress;
+
+DO $$
+DECLARE
+  u   collection('date');
+  r   record;
+BEGIN
+  RAISE NOTICE 'SRF test 8';
+  u['aaa'] := '1999-12-31'::date;
+  u['bbb'] := null;
+  u['ccc'] := '2000-01-01'::date;
+
+  RAISE NOTICE '----------------';
+  FOR r IN SELECT * FROM to_table(u, null::date) v
+  LOOP
+	RAISE NOTICE 'key: [%] value: [%]', r.key, r.value;
+  END LOOP;
+END
+$$;

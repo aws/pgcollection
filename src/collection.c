@@ -57,6 +57,7 @@ _PG_init(void)
 	collection_we_add = WaitEventExtensionNew("CollectionAdd");
 	collection_we_count = WaitEventExtensionNew("CollectionCount");
 	collection_we_find = WaitEventExtensionNew("CollectionFind");
+	collection_we_exist = WaitEventExtensionNew("CollectionExist");
 	collection_we_delete = WaitEventExtensionNew("CollectionDelete");
 	collection_we_sort = WaitEventExtensionNew("CollectionSort");
 	collection_we_copy = WaitEventExtensionNew("CollectionCopy");
@@ -73,6 +74,7 @@ _PG_init(void)
 	collection_we_add = PG_WAIT_EXTENSION;
 	collection_we_count = PG_WAIT_EXTENSION;
 	collection_we_find = PG_WAIT_EXTENSION;
+	collection_we_exist = PG_WAIT_EXTENSION;
 	collection_we_delete = PG_WAIT_EXTENSION;
 	collection_we_copy = PG_WAIT_EXTENSION;
 	collection_we_value = PG_WAIT_EXTENSION;
@@ -146,21 +148,28 @@ collection_flatten_into(ExpandedObjectHeader *eohptr,
 
 		key_len = strlen(cur->key);
 
-		if (colhdr->value_type_len != -1)
+		memcpy(cresult->values + location, (char *) &key_len, sizeof(key_len));
+		location += sizeof(key_len);
+
+		if (cur->isnull)
 		{
-			value_len = colhdr->value_type_len;
-			is_varlena = false;
+			value_len = 0;
 		}
 		else
 		{
-			struct varlena *s = (struct varlena *) DatumGetPointer(cur->value);
+			if (colhdr->value_type_len != -1)
+			{
+				value_len = colhdr->value_type_len;
+				is_varlena = false;
+			}
+			else
+			{
+				struct varlena *s = (struct varlena *) DatumGetPointer(cur->value);
 
-			value_len = (size_t) VARSIZE_ANY(s);
-			is_varlena = true;
+				value_len = (size_t) VARSIZE_ANY(s);
+				is_varlena = true;
+			}
 		}
-
-		memcpy(cresult->values + location, (char *) &key_len, sizeof(key_len));
-		location += sizeof(key_len);
 
 		memcpy(cresult->values + location, (char *) &value_len, sizeof(value_len));
 		location += sizeof(value_len);
@@ -168,12 +177,15 @@ collection_flatten_into(ExpandedObjectHeader *eohptr,
 		memcpy(cresult->values + location, cur->key, key_len);
 		location += key_len;
 
-		if (is_varlena)
-			memcpy((char *) cresult->values + location, (char *) cur->value, value_len);
-		else
-			memcpy((char *) cresult->values + location, (char *) &cur->value, value_len);
+		if (value_len > 0)
+		{
+			if (is_varlena)
+				memcpy((char *) cresult->values + location, (char *) cur->value, value_len);
+			else
+				memcpy((char *) cresult->values + location, (char *) &cur->value, value_len);
 
-		location += value_len;
+			location += value_len;
+		}
 	}
 	stats.context_switch++;
 	pgstat_report_wait_end();
@@ -285,23 +297,19 @@ DatumGetExpandedCollection(Datum d)
 		location += key_len;
 
 		item->key = key;
-		/* Handle value without extra allocation/deallocation */
-		if (colhdr->value_type_len != -1)
-		{
-			/* Fixed-length type: read directly from buffer */
-			Datum temp_value;
-			memcpy(&temp_value, fc->values + location, value_len);
-			item->value = datumCopy(temp_value, colhdr->value_byval, colhdr->value_type_len);
-		}
+
+		if (value_len == 0)
+			item->isnull = true;
 		else
 		{
-			/* Variable-length type: pass pointer directly to datumCopy */
-			item->value = datumCopy((Datum) (fc->values + location), colhdr->value_byval, value_len);
+			item->isnull = false;
+
+			if (colhdr->value_type_len != -1)
+				item->value = datumCopy((Datum) *value, colhdr->value_byval, value_len);
+			else
+				item->value = datumCopy((Datum) value, colhdr->value_byval, value_len);
 		}
 
-		location += value_len;
-
-		/* Use known key_len instead of calling strlen() */
 		HASH_ADD(hh, colhdr->current, key[0], key_len, item);
 
 		if (i == 0)
