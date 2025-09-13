@@ -239,6 +239,7 @@ DatumGetExpandedCollection(Datum d)
 	int			location = 0;
 	int			i = 0;
 	struct varlena *attr;
+
 	/* Bulk allocate all collection items at once */
 	collection *items = NULL;
 
@@ -279,7 +280,7 @@ DatumGetExpandedCollection(Datum d)
 	{
 		int16		key_len;
 		size_t		value_len;
-		char		*key;
+		char	   *key;
 		collection *item;
 
 		memcpy((unsigned char *) &key_len, fc->values + location, sizeof(int16));
@@ -306,7 +307,8 @@ DatumGetExpandedCollection(Datum d)
 			if (colhdr->value_type_len != -1)
 			{
 				/* Fixed-length type: read directly from buffer */
-				Datum temp_value;
+				Datum		temp_value;
+
 				memcpy(&temp_value, fc->values + location, value_len);
 				item->value = datumCopy(temp_value, colhdr->value_byval, value_len);
 			}
