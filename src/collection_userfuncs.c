@@ -290,6 +290,8 @@ collection_delete(PG_FUNCTION_ARGS)
 			PG_RETURN_DATUM(EOHPGetRWDatum(&colhdr->hdr));
 		}
 
+		if (item == colhdr->current)
+			colhdr->current = item->hh.next;
 		HASH_DEL(colhdr->head, item);
 		pfree(item);
 
