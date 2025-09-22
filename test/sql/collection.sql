@@ -466,3 +466,5 @@ BEGIN
   long_key := repeat('f', 32768);
   c := delete(c, long_key);
 END $$;
+
+SELECT delete('{"value_type": "pg_catalog.text", "entries": {"A": "A", "B": "B", "C": "C"}}'::collection, 'A');

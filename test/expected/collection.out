@@ -565,3 +565,9 @@ NOTICE:  Test 34
 ERROR:  key too long
 DETAIL:  Key length 32768 exceeds maximum allowed length 32767
 CONTEXT:  PL/pgSQL function inline_code_block line 10 at assignment
+SELECT delete('{"value_type": "pg_catalog.text", "entries": {"A": "A", "B": "B", "C": "C"}}'::collection, 'A');
+                               delete                               
+--------------------------------------------------------------------
+ {"value_type": "pg_catalog.text", "entries": {"B": "B", "C": "C"}}
+(1 row)
+
