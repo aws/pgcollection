@@ -240,9 +240,6 @@ DatumGetExpandedCollection(Datum d)
 	int			i = 0;
 	struct varlena *attr;
 
-	/* Bulk allocate all collection items at once */
-	collection *items = NULL;
-
 	if (VARATT_IS_EXTERNAL_EXPANDED(DatumGetPointer(d)))
 	{
 		colhdr = (CollectionHeader *) DatumGetEOHP(d);
@@ -273,9 +270,6 @@ DatumGetExpandedCollection(Datum d)
 	colhdr->value_type = fc->value_type;
 	get_typlenbyval(fc->value_type, &colhdr->value_type_len, &colhdr->value_byval);
 
-	if (fc->num_entries > 0)
-		items = (collection *) palloc(fc->num_entries * sizeof(collection));
-
 	while (i < fc->num_entries)
 	{
 		int16		key_len;
@@ -289,7 +283,8 @@ DatumGetExpandedCollection(Datum d)
 		memcpy((unsigned char *) &value_len, fc->values + location, sizeof(size_t));
 		location += sizeof(size_t);
 
-		item = &items[i];
+		/* Allocate each item individually so they can be freed independently */
+		item = (collection *) palloc(sizeof(collection));
 
 		key = (char *) palloc(key_len + 1);
 		memcpy(key, fc->values + location, key_len);
@@ -320,11 +315,13 @@ DatumGetExpandedCollection(Datum d)
 		}
 		location += value_len;
 
-		HASH_ADD(hh, colhdr->current, key[0], key_len, item);
+		HASH_ADD(hh, colhdr->head, key[0], key_len, item);
 
 		if (i == 0)
-			colhdr->head = colhdr->current;
-
+		{
+			colhdr->head = item;
+			colhdr->current = item;
+		}
 		i++;
 	}
 
