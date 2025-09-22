@@ -468,3 +468,19 @@ BEGIN
 END $$;
 
 SELECT delete('{"value_type": "pg_catalog.text", "entries": {"A": "A", "B": "B", "C": "C"}}'::collection, 'A');
+
+DO $$
+DECLARE
+  arr_instance collection('collection');
+BEGIN
+  RAISE NOTICE 'Test 35';
+
+  -- Initialize: A -> AA := 1
+  arr_instance := add(arr_instance, 'A', add(NULL::collection, 'AA', 1::int));
+
+  FOR i IN 1..10 LOOP
+    -- Update: A -> AB := 1
+    RAISE NOTICE 'Attempt: %', i;
+    arr_instance := add(arr_instance, 'A', add(find(arr_instance, 'A', NULL::collection), 'AB', 1::int));
+  END LOOP;
+END $$;
