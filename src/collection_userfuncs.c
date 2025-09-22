@@ -157,10 +157,13 @@ collection_count(PG_FUNCTION_ARGS)
 	Size		count;
 	CollectionHeader *colhdr;
 
+	if (PG_ARGISNULL(0))
+		return 0;
+
 	colhdr = fetch_collection(fcinfo, 0);
 
 	if (colhdr->head == NULL)
-		PG_RETURN_NULL();
+		return 0;
 
 	pgstat_report_wait_start(collection_we_count);
 
@@ -180,18 +183,25 @@ collection_find(PG_FUNCTION_ARGS)
 	Oid			rettype;
 	CollectionHeader *colhdr;
 
-	if (PG_ARGISNULL(0) || PG_ARGISNULL(1))
+	if (PG_ARGISNULL(1))
 		PG_RETURN_NULL();
+
+	key = text_to_cstring(PG_GETARG_TEXT_PP(1));
+	VALIDATE_KEY_LENGTH(key);
+
+	if (PG_ARGISNULL(0))
+		ereport(ERROR,
+				(errcode(ERRCODE_NO_DATA_FOUND),
+				 errmsg("key \"%s\" not found", key)));
 
 	colhdr = fetch_collection(fcinfo, 0);
 	if (colhdr->head == NULL)
 	{
 		stats.find++;
-		PG_RETURN_NULL();
+		ereport(ERROR,
+				(errcode(ERRCODE_NO_DATA_FOUND),
+				 errmsg("key \"%s\" not found", key)));
 	}
-
-	key = text_to_cstring(PG_GETARG_TEXT_PP(1));
-	VALIDATE_KEY_LENGTH(key);
 
 	item = find_internal(colhdr, key);
 
@@ -446,6 +456,9 @@ Datum
 collection_isnull(PG_FUNCTION_ARGS)
 {
 	CollectionHeader *colhdr;
+
+	if (PG_ARGISNULL(0))
+		PG_RETURN_BOOL(true);
 
 	colhdr = fetch_collection(fcinfo, 0);
 

@@ -484,3 +484,54 @@ BEGIN
     arr_instance := add(arr_instance, 'A', add(find(arr_instance, 'A', NULL::collection), 'AB', 1::int));
   END LOOP;
 END $$;
+
+DO $$
+DECLARE
+  c1 collection('text');
+BEGIN
+  RAISE NOTICE 'Test 36';
+
+  -- Uninitialized collection
+    RAISE NOTICE 'find(c1): %', find(c1, 'B', NULL::TEXT);
+END $$;
+
+DO $$
+DECLARE
+  c2 collection('text') DEFAULT '{"value_type": "text", "entries": {}}'::collection;
+BEGIN
+  RAISE NOTICE 'Test 37';
+
+  -- Empty collection
+  RAISE NOTICE 'find(c2): %', find(c2, 'B', NULL::TEXT);
+END $$;
+
+DO $$
+DECLARE
+  c3 collection('text');
+BEGIN
+  RAISE NOTICE 'Test 38';
+
+  -- Non-empty collection
+  c3 := add(c3, 'A', 'Hello World');
+  RAISE NOTICE 'find(c3): %', find(c3, 'B', NULL::TEXT);
+END $$;
+
+DO $$
+DECLARE
+  c1 collection('text');
+  c2 collection('text') DEFAULT '{"value_type": "text", "entries": {}}'::collection;
+  c3 collection('text');
+BEGIN
+  RAISE NOTICE 'Test 39';
+
+  -- Uninitialized collection
+  RAISE NOTICE 'count(c1): %', count(c1);
+
+  -- Empty collection
+  RAISE NOTICE 'count(c2): %', count(c2);
+
+  -- Non-empty collection
+  c3 := add(c3, 'A', 'Hello World');
+  RAISE NOTICE 'count(c3): %', count(c3);
+END
+$$;

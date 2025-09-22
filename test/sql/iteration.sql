@@ -424,3 +424,23 @@ BEGIN
   RAISE NOTICE 'last_key: %', last_key(u);
 END
 $$;
+
+DO $$
+DECLARE
+  c1 collection('text');
+  c2 collection('text') DEFAULT '{"value_type": "text", "entries": {}}'::collection;
+  c3 collection('text');
+BEGIN
+  RAISE NOTICE 'Iteration test 29';
+
+  -- Uninitialized collection
+  RAISE NOTICE 'isnull(c1): %', isnull(c1);
+
+  -- Empty collection
+  RAISE NOTICE 'isnull(c2): %', isnull(c2);
+
+  -- Non-empty collection
+  c3 := add(c3, 'A', 'Hello World');
+  RAISE NOTICE 'isnull(c3): %', isnull(c3);
+END
+$$;

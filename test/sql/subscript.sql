@@ -306,3 +306,44 @@ BEGIN
   arr_instance2['A'] := 1;
   RAISE NOTICE 'Count: %', count(arr_instance2);
 END $$;
+
+DO $$
+DECLARE
+  c1 collection('text');
+BEGIN
+  RAISE NOTICE 'Subscript test 24';
+
+  -- Uninitialized collection
+    RAISE NOTICE 'fetch(c1): %', c1['B'];
+END $$;
+
+DO $$
+DECLARE
+  c2 collection('text') DEFAULT '{"value_type": "text", "entries": {}}'::collection;
+BEGIN
+  RAISE NOTICE 'Subscript test 25';
+
+  -- Empty collection
+    RAISE NOTICE 'fetch(c2): %', c2['B'];
+END $$;
+
+DO $$
+DECLARE
+  c3 collection('text');
+BEGIN
+  RAISE NOTICE 'Subscript test 26';
+
+  -- Non-empty collection
+  c3 := add(c3, 'A', 'Hello World');
+    RAISE NOTICE 'fetch(c3): %', c3['B'];
+END $$;
+
+DO $$
+DECLARE
+  c1 collection('text');
+BEGIN
+  RAISE NOTICE 'Subscript test 27';
+
+  -- Uninitialized collection
+    RAISE NOTICE 'fetch(c1): %', c1[NULL];
+END $$;

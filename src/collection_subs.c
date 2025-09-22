@@ -136,8 +136,21 @@ collection_subscript_fetch(ExprState *state,
 	char	   *key;
 	Datum		value;
 
-	/* Should not get here if source collection is null */
-	Assert(!(*op->resnull));
+	if (sbsrefstate->upperindexnull[0])
+	{
+		key = palloc(5);
+		strcpy(key, "NULL");
+	}
+	else
+	{
+		key = text_to_cstring(DatumGetTextPP(sbsrefstate->upperindex[0]));
+		VALIDATE_KEY_LENGTH(key);
+	}
+
+	if (*op->resnull)
+		ereport(ERROR,
+				(errcode(ERRCODE_NO_DATA_FOUND),
+				 errmsg("key \"%s\" not found", key)));
 
 	colhdr = (CollectionHeader *) DatumGetExpandedCollection(*op->resvalue);
 
@@ -150,9 +163,6 @@ collection_subscript_fetch(ExprState *state,
 	}
 
 	pgstat_report_wait_start(collection_we_fetch);
-
-	key = text_to_cstring(DatumGetTextPP(sbsrefstate->upperindex[0]));
-	VALIDATE_KEY_LENGTH(key);
 
 	HASH_FIND(hh, colhdr->head, key, strlen(key), item);
 
@@ -349,7 +359,7 @@ collection_subscript_handler(PG_FUNCTION_ARGS)
 	static const SubscriptRoutines sbsroutines = {
 		.transform = collection_subscript_transform,
 		.exec_setup = collection_exec_setup,
-		.fetch_strict = true,	/* fetch returns NULL for NULL inputs */
+		.fetch_strict = false,
 		.fetch_leakproof = true,	/* fetch returns NULL for bad subscript */
 		.store_leakproof = false	/* ... but assignment throws error */
 	};

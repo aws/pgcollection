@@ -49,3 +49,13 @@ CREATE FUNCTION last_key(collection)
   AS 'MODULE_PATHNAME', 'collection_last_key'
   STRICT
   LANGUAGE c;
+
+CREATE OR REPLACE FUNCTION isnull(collection)
+  RETURNS bool
+  AS 'MODULE_PATHNAME', 'collection_isnull'
+  LANGUAGE c;
+
+CREATE OR REPLACE FUNCTION count(collection)
+  RETURNS int
+  AS 'MODULE_PATHNAME', 'collection_count'
+  LANGUAGE c;
