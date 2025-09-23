@@ -147,6 +147,7 @@ parse_collection(char *json)
 	forthree(lc1, parse.keys, lc2, parse.values, lc3, parse.nulls)
 	{
 		collection *item;
+		collection *replaced_item;
 		char	   *key = lfirst(lc1);
 		char	   *vstr = lfirst(lc2);
 		bool		isnull = (bool) lfirst_int(lc3);
@@ -164,10 +165,18 @@ parse_collection(char *json)
 			item->value = datumCopy(value, colhdr->value_byval, colhdr->value_type_len);
 		}
 
-		HASH_ADD_KEYPTR(hh, colhdr->current, key, strlen(key), item);
+		HASH_REPLACE(hh, colhdr->head, key[0], strlen(key), item, replaced_item);
+		if (replaced_item)
+		{
+			if (replaced_item->key)
+				pfree(replaced_item->key);
+			if (replaced_item->isnull == false && replaced_item->value)
+				pfree(DatumGetPointer(replaced_item->value));
+			pfree(replaced_item);
+		}
 
 		if (i == 0)
-			colhdr->head = colhdr->current;
+			colhdr->current = colhdr->head;
 
 		i++;
 	}

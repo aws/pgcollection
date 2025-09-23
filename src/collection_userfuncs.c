@@ -293,6 +293,10 @@ collection_delete(PG_FUNCTION_ARGS)
 		if (item == colhdr->current)
 			colhdr->current = item->hh.next;
 		HASH_DEL(colhdr->head, item);
+		if (item->key)
+			pfree(item->key);
+		if (!item->isnull && item->value)
+			pfree(DatumGetPointer(item->value));
 		pfree(item);
 
 		/* Clean up the hash table if the last item was deleted */
@@ -349,6 +353,7 @@ collection_copy(PG_FUNCTION_ARGS)
 		MemoryContext oldcxt;
 		collection *iter;
 		collection *item;
+		collection *replaced_item;
 		collection *head;
 
 		copyhdr = construct_empty_collection(CurrentMemoryContext);
@@ -376,7 +381,12 @@ collection_copy(PG_FUNCTION_ARGS)
 			if (!iter->isnull)
 				item->value = datumCopy(iter->value, colhdr->value_byval, colhdr->value_type_len);
 
-			HASH_ADD(hh, copyhdr->head, key[0], strlen(key), item);
+			HASH_REPLACE(hh, copyhdr->head, key, strlen(key), item, replaced_item);
+			if (replaced_item)
+			{
+				pfree(replaced_item->key);
+				pfree(replaced_item);
+			}
 
 			if (!copyhdr->current)
 				copyhdr->current = copyhdr->head;
