@@ -32,6 +32,7 @@ typedef enum
 	EXPECT_TOPLEVEL_FIELD,
 	EXPECT_VALUE_TYPE,
 	EXPECT_ENTRIES,
+	EXPECT_ENTRIES_OBJECT,
 	EXPECT_EOF,
 }			JsonCollectionSemanticState;
 
@@ -191,6 +192,7 @@ json_collection_object_start(void *state)
 			break;
 
 		case EXPECT_ENTRIES:
+			parse->state = EXPECT_ENTRIES_OBJECT;
 			break;
 
 		default:
@@ -212,7 +214,7 @@ json_collection_object_end(void *state)
 			parse->state = EXPECT_EOF;
 			break;
 
-		case EXPECT_ENTRIES:
+		case EXPECT_ENTRIES_OBJECT:
 			parse->state = EXPECT_TOPLEVEL_END;
 			break;
 
@@ -258,7 +260,7 @@ json_collection_object_field_start(void *state, char *fname, bool isnull)
 			elog(ERROR, "unrecognized top-level field");
 			break;
 
-		case EXPECT_ENTRIES:
+		case EXPECT_ENTRIES_OBJECT:
 			key = palloc0(strlen(fname) + 1);
 			strcpy(key, fname);
 			parse->keys = lappend(parse->keys, key);
@@ -288,6 +290,10 @@ json_collection_scalar(void *state, char *token, JsonTokenType tokentype)
 			break;
 
 		case EXPECT_ENTRIES:
+			elog(ERROR, "\"entries\" field must be a JSON object, not a scalar value");
+			break;
+
+		case EXPECT_ENTRIES_OBJECT:
 			parse->values = lappend(parse->values, token);
 			break;
 
