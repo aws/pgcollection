@@ -276,6 +276,7 @@ DatumGetExpandedCollection(Datum d)
 		size_t		value_len;
 		char	   *key;
 		collection *item;
+		collection *replaced_item;
 
 		memcpy((unsigned char *) &key_len, fc->values + location, sizeof(int16));
 		location += sizeof(int16);
@@ -315,7 +316,15 @@ DatumGetExpandedCollection(Datum d)
 		}
 		location += value_len;
 
-		HASH_ADD(hh, colhdr->head, key[0], key_len, item);
+		HASH_REPLACE(hh, colhdr->head, key[0], key_len, item, replaced_item);
+		if (replaced_item)
+		{
+			if (replaced_item->key)
+				pfree(replaced_item->key);
+			if (replaced_item->isnull == false && replaced_item->value)
+				pfree(DatumGetPointer(replaced_item->value));
+			pfree(replaced_item);
+		}
 
 		if (i == 0)
 		{

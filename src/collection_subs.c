@@ -290,6 +290,14 @@ collection_subscript_assign(ExprState *state,
 	}
 
 	HASH_REPLACE(hh, colhdr->head, key[0], strlen(key), item, replaced_item);
+	if (replaced_item)
+	{
+		if (replaced_item->key)
+			pfree(replaced_item->key);
+		if (replaced_item->isnull == false && replaced_item->value)
+			pfree(DatumGetPointer(replaced_item->value));
+		pfree(replaced_item);
+	}
 
 	if (colhdr->current == NULL)
 		colhdr->current = colhdr->head;
