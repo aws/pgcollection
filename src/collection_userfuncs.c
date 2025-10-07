@@ -18,6 +18,7 @@
 #include <ctype.h>
 #include <limits.h>
 
+#include "access/htup_details.h"
 #include "catalog/pg_collation_d.h"
 #include "catalog/pg_type.h"
 #include "funcapi.h"
