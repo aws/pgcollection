@@ -1,4 +1,7 @@
 name: pgcollection CI
+permissions:
+  contents: read
+  pull-requests: write
 on:
   schedule:
     # Runs every day at 4am.
