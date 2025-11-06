@@ -139,7 +139,13 @@ collection_add(PG_FUNCTION_ARGS)
 	HASH_REPLACE(hh, colhdr->head, key[0], strlen(key), item, replaced_item);
 
 	if (replaced_item)
+	{
+		if (replaced_item->key)
+			pfree(replaced_item->key);
+		if (!replaced_item->isnull && replaced_item->value && !argtypebyval)
+			pfree(DatumGetPointer(replaced_item->value));
 		pfree(replaced_item);
+	}
 
 	if (colhdr->current == NULL)
 		colhdr->current = colhdr->head;

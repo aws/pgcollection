@@ -535,3 +535,14 @@ BEGIN
   RAISE NOTICE 'count(c3): %', count(c3);
 END
 $$;
+
+DO $$
+DECLARE
+  val1 collection('int4');
+BEGIN
+  RAISE NOTICE 'Test 40';
+
+  val1 := add(val1, 'A', 1::int4);
+  val1 := add(val1, 'A', 2::int4);
+END;
+$$;

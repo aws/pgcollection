@@ -399,3 +399,25 @@ END $$;
 NOTICE:  Subscript test 27
 ERROR:  key "NULL" not found
 CONTEXT:  PL/pgSQL function inline_code_block line 8 at RAISE
+DO $$
+DECLARE
+  val1 collection('int4');
+BEGIN
+  RAISE NOTICE 'Subscript test 28';
+
+  val1['A'] := 1::int4;
+  val1['A'] := 2::int4;
+END;
+$$;
+NOTICE:  Subscript test 28
+DO $$
+DECLARE
+  val1 collection('varchar');
+BEGIN
+  RAISE NOTICE 'Subscript test 28';
+
+  val1['A'] := 'hello'::varchar;
+  val1['A'] := 'world'::varchar;
+END;
+$$;
+NOTICE:  Subscript test 28

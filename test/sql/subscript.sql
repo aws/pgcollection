@@ -347,3 +347,26 @@ BEGIN
   -- Uninitialized collection
     RAISE NOTICE 'fetch(c1): %', c1[NULL];
 END $$;
+
+DO $$
+DECLARE
+  val1 collection('int4');
+BEGIN
+  RAISE NOTICE 'Subscript test 28';
+
+  val1['A'] := 1::int4;
+  val1['A'] := 2::int4;
+END;
+$$;
+
+
+DO $$
+DECLARE
+  val1 collection('varchar');
+BEGIN
+  RAISE NOTICE 'Subscript test 28';
+
+  val1['A'] := 'hello'::varchar;
+  val1['A'] := 'world'::varchar;
+END;
+$$;

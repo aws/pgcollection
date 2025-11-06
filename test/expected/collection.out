@@ -657,3 +657,14 @@ NOTICE:  Test 39
 NOTICE:  count(c1): 0
 NOTICE:  count(c2): 0
 NOTICE:  count(c3): 1
+DO $$
+DECLARE
+  val1 collection('int4');
+BEGIN
+  RAISE NOTICE 'Test 40';
+
+  val1 := add(val1, 'A', 1::int4);
+  val1 := add(val1, 'A', 2::int4);
+END;
+$$;
+NOTICE:  Test 40
