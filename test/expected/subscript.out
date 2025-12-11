@@ -204,9 +204,6 @@ BEGIN
 END
 $$;
 NOTICE:  Subscript test 14
-ERROR:  incompatible value data type
-DETAIL:  expecting bigint, but received text
-CONTEXT:  PL/pgSQL function inline_code_block line 8 at assignment
 DO
 $$
 DECLARE
@@ -421,3 +418,49 @@ BEGIN
 END;
 $$;
 NOTICE:  Subscript test 28
+-- Test for data corruption regression
+DO $$
+DECLARE
+  t collection('bigint');
+BEGIN
+  RAISE NOTICE 'Subscript test 29 - Data corruption regression';
+  
+  t['key1'] := 1::bigint;
+  t['key2'] := 2::bigint;
+  t['key3'] := 9223372036854775807::bigint; -- Max bigint
+  
+  RAISE NOTICE 'Values: %, %, %', t['key1'], t['key2'], t['key3'];
+END;
+$$;
+NOTICE:  Subscript test 29 - Data corruption regression
+NOTICE:  Values: 1, 2, 9223372036854775807
+DO $$
+DECLARE
+  n collection('numeric');
+BEGIN
+  RAISE NOTICE 'Subscript test 30 - Numeric precision regression';
+  
+  n['pi'] := 3.14159265359::numeric;
+  n['small'] := 0.000001::numeric;
+  n['large'] := 999999999.999999::numeric;
+  
+  RAISE NOTICE 'Values: %, %, %', n['pi'], n['small'], n['large'];
+END;
+$$;
+NOTICE:  Subscript test 30 - Numeric precision regression
+NOTICE:  Values: 3.14159265359, 0.000001, 999999999.999999
+DO $$
+DECLARE
+  i collection('int4');
+BEGIN
+  RAISE NOTICE 'Subscript test 31 - Type property consistency';
+  
+  i['a'] := 42::int4;
+  i['b'] := -2147483647::int4; -- Near min int4
+  i['c'] := 2147483647::int4;  -- Max int4
+  
+  RAISE NOTICE 'Values: %, %, %', i['a'], i['b'], i['c'];
+END;
+$$;
+NOTICE:  Subscript test 31 - Type property consistency
+NOTICE:  Values: 42, -2147483647, 2147483647

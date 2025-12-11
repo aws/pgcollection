@@ -257,6 +257,17 @@ collection_subscript_assign(ExprState *state,
 		colhdr->value_type_len = workspace->value_type_len;
 		colhdr->value_byval = workspace->value_byval;
 	}
+	else if (workspace->value_type != colhdr->value_type)
+	{
+		/*
+		 * Collection has existing type - update workspace to match and ensure
+		 * correct type properties
+		 */
+		workspace->value_type = colhdr->value_type;
+		get_typlenbyval(colhdr->value_type, &workspace->value_type_len, &workspace->value_byval);
+		colhdr->value_type_len = workspace->value_type_len;
+		colhdr->value_byval = workspace->value_byval;
+	}
 
 	pgstat_report_wait_start(collection_we_assign);
 
