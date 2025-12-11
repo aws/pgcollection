@@ -262,8 +262,13 @@ BEGIN
   END LOOP;
 END
 $$;
-ERROR:  collation "en_US" for encoding "UTF8" does not exist
-CONTEXT:  compilation of PL/pgSQL function "inline_code_block" near line 3
+NOTICE:  Iteration test 15
+NOTICE:  u value: 1
+NOTICE:  u value: 2
+NOTICE:  u value: 3
+NOTICE:  v value: 2
+NOTICE:  v value: 1
+NOTICE:  v value: 3
 DO $$
 DECLARE
   u   collection('text');
