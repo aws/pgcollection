@@ -239,6 +239,12 @@ collection_cast(PG_FUNCTION_ARGS)
 							   format_type_extended(typmod, -1, 0),
 							   format_type_extended(colhdr->value_type, -1, 0))));
 	}
+	else if (typmod > 0 && colhdr->value_type == InvalidOid)
+	{
+		/* For empty collections with InvalidOid, set the target type */
+		colhdr->value_type = (Oid) typmod;
+		get_typlenbyval(colhdr->value_type, &colhdr->value_type_len, &colhdr->value_byval);
+	}
 
 	pgstat_report_wait_end();
 

@@ -383,3 +383,21 @@ END
 $$;
 
 DROP PROCEDURE test_inout_stress_regression(collection);
+
+-- Test uninitialized collections with INOUT parameters
+CREATE OR REPLACE PROCEDURE test_uninitialized_inout(INOUT param_1 collection('int4'))
+AS $$
+BEGIN
+END;
+$$ LANGUAGE plpgsql;
+
+DO $$
+DECLARE
+  var1 collection('int4');
+BEGIN
+  CALL test_uninitialized_inout(var1);
+  CALL test_uninitialized_inout(var1);
+  RAISE NOTICE 'Uninitialized INOUT test passed';
+END $$;
+
+DROP PROCEDURE test_uninitialized_inout(collection);
