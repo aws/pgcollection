@@ -1,0 +1,411 @@
+-- Test INOUT parameter functionality to prevent regression of double free bug
+-- This test ensures collections work correctly as INOUT parameters without crashes
+-- Test 1: Basic INOUT parameter with single call
+CREATE OR REPLACE PROCEDURE test_inout_basic(INOUT c collection)
+AS $$
+BEGIN
+  c := add(c, 'key1', 'value1'::text);
+END;
+$$ LANGUAGE plpgsql;
+DO $$
+DECLARE
+  c collection('text');
+BEGIN
+  CALL test_inout_basic(c);
+  RAISE NOTICE 'Basic INOUT test: % items', count(c);
+  RAISE NOTICE 'Value: %', find(c, 'key1');
+END;
+$$;
+NOTICE:  Basic INOUT test: 1 items
+NOTICE:  Value: value1
+-- Test 2: Multiple INOUT calls with data accumulation
+CREATE OR REPLACE PROCEDURE test_inout_accumulate(INOUT c collection, key_name text, val int4)
+AS $$
+BEGIN
+  c := add(c, key_name, val);
+END;
+$$ LANGUAGE plpgsql;
+DO $$
+DECLARE
+  c collection('int4');
+BEGIN
+  FOR i IN 1..5 LOOP
+    CALL test_inout_accumulate(c, 'key_' || i, i * 10);
+    RAISE NOTICE 'Iteration %: % items', i, count(c);
+  END LOOP;
+  
+  -- Verify all values are present
+  FOR i IN 1..5 LOOP
+    RAISE NOTICE 'key_%: %', i, find(c, 'key_' || i, 0::int4);
+  END LOOP;
+END;
+$$;
+NOTICE:  Iteration 1: 1 items
+NOTICE:  Iteration 2: 2 items
+NOTICE:  Iteration 3: 3 items
+NOTICE:  Iteration 4: 4 items
+NOTICE:  Iteration 5: 5 items
+NOTICE:  key_1: 10
+NOTICE:  key_2: 20
+NOTICE:  key_3: 30
+NOTICE:  key_4: 40
+NOTICE:  key_5: 50
+-- Test 3: INOUT with different data types
+CREATE OR REPLACE PROCEDURE test_inout_types(INOUT c collection, val date)
+AS $$
+BEGIN
+  c := add(c, 'date_key', val);
+END;
+$$ LANGUAGE plpgsql;
+DO $$
+DECLARE
+  c collection('date');
+BEGIN
+  CALL test_inout_types(c, '2024-01-01'::date);
+  CALL test_inout_types(c, '2024-12-31'::date);
+  RAISE NOTICE 'Date collection has % items', count(c);
+END;
+$$;
+NOTICE:  Date collection has 1 items
+-- Test 4: INOUT with iteration after modification
+CREATE OR REPLACE PROCEDURE test_inout_with_iteration(INOUT c collection)
+AS $$
+BEGIN
+  c := add(c, 'iter1', 'first'::text);
+  c := add(c, 'iter2', 'second'::text);
+  c := add(c, 'iter3', 'third'::text);
+END;
+$$ LANGUAGE plpgsql;
+DO $$
+DECLARE
+  c collection('text');
+BEGIN
+  CALL test_inout_with_iteration(c);
+  
+  -- Test iteration works correctly after INOUT modification
+  c := first(c);
+  WHILE NOT isnull(c) LOOP
+    RAISE NOTICE 'Iteration: % = %', key(c), value(c);
+    c := next(c);
+  END LOOP;
+END;
+$$;
+NOTICE:  Iteration: iter1 = first
+NOTICE:  Iteration: iter2 = second
+NOTICE:  Iteration: iter3 = third
+-- Test 5: Complex INOUT scenario with delete operations
+CREATE OR REPLACE PROCEDURE test_inout_complex(INOUT c collection, operation text, k text, v text)
+AS $$
+BEGIN
+  IF operation = 'add' THEN
+    c := add(c, k, v);
+  ELSIF operation = 'delete' THEN
+    c := delete(c, k);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+DO $$
+DECLARE
+  c collection('text');
+BEGIN
+  -- Add several items
+  CALL test_inout_complex(c, 'add', 'a', 'alpha');
+  CALL test_inout_complex(c, 'add', 'b', 'beta');
+  CALL test_inout_complex(c, 'add', 'c', 'gamma');
+  RAISE NOTICE 'After adds: % items', count(c);
+  
+  -- Delete one item
+  CALL test_inout_complex(c, 'delete', 'b', '');
+  RAISE NOTICE 'After delete: % items', count(c);
+  
+  -- Verify remaining items
+  c := first(c);
+  WHILE NOT isnull(c) LOOP
+    RAISE NOTICE 'Remaining: % = %', key(c), value(c);
+    c := next(c);
+  END LOOP;
+END;
+$$;
+NOTICE:  After adds: 3 items
+NOTICE:  After delete: 2 items
+NOTICE:  Remaining: a = alpha
+NOTICE:  Remaining: c = gamma
+-- Test 6: INOUT with null collections
+CREATE OR REPLACE PROCEDURE test_inout_null(INOUT c collection)
+AS $$
+BEGIN
+  IF c IS NULL THEN
+    RAISE NOTICE 'Collection is null, creating new';
+  END IF;
+  c := add(c, 'null_test', 'created'::text);
+END;
+$$ LANGUAGE plpgsql;
+DO $$
+DECLARE
+  c collection('text');
+BEGIN
+  -- c starts as null
+  CALL test_inout_null(c);
+  RAISE NOTICE 'Null test result: % items', count(c);
+END;
+$$;
+NOTICE:  Collection is null, creating new
+NOTICE:  Null test result: 1 items
+-- Cleanup
+DROP PROCEDURE test_inout_basic(INOUT collection);
+DROP PROCEDURE test_inout_accumulate(INOUT collection, text, int4);
+DROP PROCEDURE test_inout_types(INOUT collection, date);
+DROP PROCEDURE test_inout_with_iteration(INOUT collection);
+DROP PROCEDURE test_inout_complex(INOUT collection, text, text, text);
+DROP PROCEDURE test_inout_null(INOUT collection);
+-- Additional edge case tests for INOUT parameters
+-- Test 7: Nested INOUT calls (procedure calling procedure)
+CREATE OR REPLACE PROCEDURE test_inout_nested_inner(INOUT c collection, val text)
+AS $$
+BEGIN
+  c := add(c, 'inner', val);
+END;
+$$ LANGUAGE plpgsql;
+CREATE OR REPLACE PROCEDURE test_inout_nested_outer(INOUT c collection)
+AS $$
+BEGIN
+  c := add(c, 'outer', 'start');
+  CALL test_inout_nested_inner(c, 'nested_value');
+  c := add(c, 'final', 'end');
+END;
+$$ LANGUAGE plpgsql;
+DO $$
+DECLARE
+  c collection('text');
+BEGIN
+  CALL test_inout_nested_outer(c);
+  RAISE NOTICE 'Nested test: % items', count(c);
+  
+  c := first(c);
+  WHILE NOT isnull(c) LOOP
+    RAISE NOTICE 'Nested result: % = %', key(c), value(c);
+    c := next(c);
+  END LOOP;
+END;
+$$;
+NOTICE:  Nested test: 3 items
+NOTICE:  Nested result: outer = start
+NOTICE:  Nested result: inner = nested_value
+NOTICE:  Nested result: final = end
+-- Test 8: INOUT with collection operations (sort, copy, etc.)
+CREATE OR REPLACE PROCEDURE test_inout_operations(INOUT c collection)
+AS $$
+BEGIN
+  c := add(c, 'z_last', 'should_be_last');
+  c := add(c, 'a_first', 'should_be_first');
+  c := add(c, 'm_middle', 'should_be_middle');
+  c := sort(c);
+END;
+$$ LANGUAGE plpgsql;
+DO $$
+DECLARE
+  c collection('text');
+BEGIN
+  CALL test_inout_operations(c);
+  RAISE NOTICE 'Operations test: % items', count(c);
+  
+  c := first(c);
+  WHILE NOT isnull(c) LOOP
+    RAISE NOTICE 'Sorted: % = %', key(c), value(c);
+    c := next(c);
+  END LOOP;
+END;
+$$;
+NOTICE:  Operations test: 3 items
+NOTICE:  Sorted: a_first = should_be_first
+NOTICE:  Sorted: m_middle = should_be_middle
+NOTICE:  Sorted: z_last = should_be_last
+-- Test 9: INOUT with large collections (stress test)
+CREATE OR REPLACE PROCEDURE test_inout_large(INOUT c collection, num_items int)
+AS $$
+BEGIN
+  FOR i IN 1..num_items LOOP
+    c := add(c, 'item_' || i, 'value_' || i);
+  END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+DO $$
+DECLARE
+  c collection('text');
+BEGIN
+  CALL test_inout_large(c, 100);
+  RAISE NOTICE 'Large collection test: % items', count(c);
+  
+  -- Test iteration over large collection
+  c := first(c);
+  DECLARE
+    counter int := 0;
+  BEGIN
+    WHILE NOT isnull(c) AND counter < 5 LOOP
+      counter := counter + 1;
+      RAISE NOTICE 'Large item %: % = %', counter, key(c), value(c);
+      c := next(c);
+    END LOOP;
+  END;
+END;
+$$;
+NOTICE:  Large collection test: 100 items
+NOTICE:  Large item 1: item_1 = value_1
+NOTICE:  Large item 2: item_2 = value_2
+NOTICE:  Large item 3: item_3 = value_3
+NOTICE:  Large item 4: item_4 = value_4
+NOTICE:  Large item 5: item_5 = value_5
+-- Test 10: INOUT with exception handling
+CREATE OR REPLACE PROCEDURE test_inout_exception(INOUT c collection, should_fail boolean)
+AS $$
+BEGIN
+  c := add(c, 'before_exception', 'added');
+  
+  IF should_fail THEN
+    RAISE EXCEPTION 'Intentional test exception';
+  END IF;
+  
+  c := add(c, 'after_exception', 'also_added');
+END;
+$$ LANGUAGE plpgsql;
+DO $$
+DECLARE
+  c collection('text');
+BEGIN
+  -- First call that succeeds
+  CALL test_inout_exception(c, false);
+  RAISE NOTICE 'Exception test (success): % items', count(c);
+  
+  -- Second call that fails - collection should remain unchanged
+  BEGIN
+    CALL test_inout_exception(c, true);
+  EXCEPTION
+    WHEN OTHERS THEN
+      RAISE NOTICE 'Exception caught as expected';
+  END;
+  
+  RAISE NOTICE 'Exception test (after failure): % items', count(c);
+  
+  c := first(c);
+  WHILE NOT isnull(c) LOOP
+    RAISE NOTICE 'Exception result: % = %', key(c), value(c);
+    c := next(c);
+  END LOOP;
+END;
+$$;
+NOTICE:  Exception test (success): 2 items
+NOTICE:  Exception caught as expected
+NOTICE:  Exception test (after failure): 2 items
+NOTICE:  Exception result: before_exception = added
+NOTICE:  Exception result: after_exception = also_added
+-- Test 11: INOUT with multiple parameters
+CREATE OR REPLACE PROCEDURE test_inout_multiple(INOUT c1 collection, INOUT c2 collection, swap_data boolean)
+AS $$
+DECLARE
+  temp_val text;
+BEGIN
+  c1 := add(c1, 'c1_key', 'from_c1');
+  c2 := add(c2, 'c2_key', 'from_c2');
+  
+  IF swap_data THEN
+    -- Cross-populate to test multiple INOUT handling
+    temp_val := find(c1, 'c1_key');
+    c2 := add(c2, 'swapped_from_c1', temp_val);
+    
+    temp_val := find(c2, 'c2_key');
+    c1 := add(c1, 'swapped_from_c2', temp_val);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+DO $$
+DECLARE
+  c1 collection('text');
+  c2 collection('text');
+BEGIN
+  CALL test_inout_multiple(c1, c2, true);
+  RAISE NOTICE 'Multiple INOUT test: c1 has % items, c2 has % items', count(c1), count(c2);
+  
+  RAISE NOTICE 'c1 contents:';
+  c1 := first(c1);
+  WHILE NOT isnull(c1) LOOP
+    RAISE NOTICE '  % = %', key(c1), value(c1);
+    c1 := next(c1);
+  END LOOP;
+  
+  RAISE NOTICE 'c2 contents:';
+  c2 := first(c2);
+  WHILE NOT isnull(c2) LOOP
+    RAISE NOTICE '  % = %', key(c2), value(c2);
+    c2 := next(c2);
+  END LOOP;
+END;
+$$;
+NOTICE:  Multiple INOUT test: c1 has 2 items, c2 has 2 items
+NOTICE:  c1 contents:
+NOTICE:    c1_key = from_c1
+NOTICE:    swapped_from_c2 = from_c2
+NOTICE:  c2 contents:
+NOTICE:    c2_key = from_c2
+NOTICE:    swapped_from_c1 = from_c1
+-- Test 12: INOUT with recursive calls
+CREATE OR REPLACE PROCEDURE test_inout_recursive(INOUT c collection, depth int)
+AS $$
+BEGIN
+  c := add(c, 'depth_' || depth, 'level_' || depth);
+  
+  IF depth > 1 THEN
+    CALL test_inout_recursive(c, depth - 1);
+  END IF;
+  
+  c := add(c, 'return_' || depth, 'back_' || depth);
+END;
+$$ LANGUAGE plpgsql;
+DO $$
+DECLARE
+  c collection('text');
+BEGIN
+  CALL test_inout_recursive(c, 3);
+  RAISE NOTICE 'Recursive test: % items', count(c);
+  
+  c := first(c);
+  WHILE NOT isnull(c) LOOP
+    RAISE NOTICE 'Recursive result: % = %', key(c), value(c);
+    c := next(c);
+  END LOOP;
+END;
+$$;
+NOTICE:  Recursive test: 6 items
+NOTICE:  Recursive result: depth_3 = level_3
+NOTICE:  Recursive result: depth_2 = level_2
+NOTICE:  Recursive result: depth_1 = level_1
+NOTICE:  Recursive result: return_1 = back_1
+NOTICE:  Recursive result: return_2 = back_2
+NOTICE:  Recursive result: return_3 = back_3
+-- Cleanup additional procedures
+DROP PROCEDURE test_inout_nested_inner(INOUT collection, text);
+DROP PROCEDURE test_inout_nested_outer(INOUT collection);
+DROP PROCEDURE test_inout_operations(INOUT collection);
+DROP PROCEDURE test_inout_large(INOUT collection, int);
+DROP PROCEDURE test_inout_exception(INOUT collection, boolean);
+DROP PROCEDURE test_inout_multiple(INOUT collection, INOUT collection, boolean);
+DROP PROCEDURE test_inout_recursive(INOUT collection, int);
+-- Test 13: INOUT stress test (regression test for double-free error)
+CREATE OR REPLACE PROCEDURE test_inout_stress_regression(INOUT c collection) AS $$
+BEGIN
+  c := add(c, 'stress_key', 'stress_value');
+END;
+$$ LANGUAGE plpgsql;
+DO $$
+DECLARE
+  c collection;
+BEGIN
+  c := add(c, 'initial', 'value');
+  
+  FOR i IN 1..50 LOOP
+    CALL test_inout_stress_regression(c);
+  END LOOP;
+  RAISE NOTICE 'INOUT stress test completed: % items', count(c);
+END
+$$;
+NOTICE:  INOUT stress test completed: 2 items
+DROP PROCEDURE test_inout_stress_regression(collection);

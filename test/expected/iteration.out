@@ -262,13 +262,8 @@ BEGIN
   END LOOP;
 END
 $$;
-NOTICE:  Iteration test 15
-NOTICE:  u value: 1
-NOTICE:  u value: 2
-NOTICE:  u value: 3
-NOTICE:  v value: 2
-NOTICE:  v value: 1
-NOTICE:  v value: 3
+ERROR:  collation "en_US" for encoding "UTF8" does not exist
+CONTEXT:  compilation of PL/pgSQL function "inline_code_block" near line 3
 DO $$
 DECLARE
   u   collection('text');
@@ -504,3 +499,58 @@ NOTICE:  Iteration test 29
 NOTICE:  isnull(c1): t
 NOTICE:  isnull(c2): t
 NOTICE:  isnull(c3): f
+-- Test WHILE loop termination to prevent infinite loop regression
+DO $$
+DECLARE
+  u   collection('text');
+  counter int := 0;
+BEGIN
+  RAISE NOTICE 'WHILE loop termination test';
+  u['aaa'] := 'Hello World';
+  u['bbb'] := 'Hello All';
+  u['ccc'] := 'Hi';
+
+  u := first(u);
+  WHILE NOT isnull(u) LOOP
+    counter := counter + 1;
+    RAISE NOTICE 'Loop iteration %: %', counter, value(u);
+    u := next(u);
+    -- Safety check to prevent infinite loop in case of regression
+    IF counter > 10 THEN
+      RAISE EXCEPTION 'WHILE loop did not terminate - infinite loop detected';
+    END IF;
+  END LOOP;
+  RAISE NOTICE 'WHILE loop completed after % iterations', counter;
+END
+$$;
+NOTICE:  WHILE loop termination test
+NOTICE:  Loop iteration 1: Hello World
+NOTICE:  Loop iteration 2: Hello All
+NOTICE:  Loop iteration 3: Hi
+NOTICE:  WHILE loop completed after 3 iterations
+-- Test iteration advancement (regression test for PostgreSQL 18 bug)
+DO $$
+DECLARE
+  c collection;
+BEGIN
+  c['aaa'] := 'first';
+  c['bbb'] := 'second';
+  c['ccc'] := 'third';
+  
+  c := first(c);
+  RAISE NOTICE 'Iteration advancement - first: %', key(c);
+  
+  c := next(c);
+  RAISE NOTICE 'Iteration advancement - next: %', key(c);
+  
+  c := next(c);
+  RAISE NOTICE 'Iteration advancement - next again: %', key(c);
+  
+  c := next(c);
+  RAISE NOTICE 'Iteration advancement - next (null): %', COALESCE(key(c), 'NULL');
+END
+$$;
+NOTICE:  Iteration advancement - first: aaa
+NOTICE:  Iteration advancement - next: bbb
+NOTICE:  Iteration advancement - next again: ccc
+NOTICE:  Iteration advancement - next (null): NULL

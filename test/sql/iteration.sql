@@ -444,3 +444,50 @@ BEGIN
   RAISE NOTICE 'isnull(c3): %', isnull(c3);
 END
 $$;
+
+-- Test WHILE loop termination to prevent infinite loop regression
+DO $$
+DECLARE
+  u   collection('text');
+  counter int := 0;
+BEGIN
+  RAISE NOTICE 'WHILE loop termination test';
+  u['aaa'] := 'Hello World';
+  u['bbb'] := 'Hello All';
+  u['ccc'] := 'Hi';
+
+  u := first(u);
+  WHILE NOT isnull(u) LOOP
+    counter := counter + 1;
+    RAISE NOTICE 'Loop iteration %: %', counter, value(u);
+    u := next(u);
+    -- Safety check to prevent infinite loop in case of regression
+    IF counter > 10 THEN
+      RAISE EXCEPTION 'WHILE loop did not terminate - infinite loop detected';
+    END IF;
+  END LOOP;
+  RAISE NOTICE 'WHILE loop completed after % iterations', counter;
+END
+$$;
+-- Test iteration advancement (regression test for PostgreSQL 18 bug)
+DO $$
+DECLARE
+  c collection;
+BEGIN
+  c['aaa'] := 'first';
+  c['bbb'] := 'second';
+  c['ccc'] := 'third';
+  
+  c := first(c);
+  RAISE NOTICE 'Iteration advancement - first: %', key(c);
+  
+  c := next(c);
+  RAISE NOTICE 'Iteration advancement - next: %', key(c);
+  
+  c := next(c);
+  RAISE NOTICE 'Iteration advancement - next again: %', key(c);
+  
+  c := next(c);
+  RAISE NOTICE 'Iteration advancement - next (null): %', COALESCE(key(c), 'NULL');
+END
+$$;

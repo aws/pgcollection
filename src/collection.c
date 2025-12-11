@@ -37,6 +37,179 @@ PG_MODULE_MAGIC_EXT(.name = EXT_NAME,.version = EXT_VERSION);
 PG_MODULE_MAGIC;
 #endif
 
+static Datum expand_collection(Datum collectiondatum, MemoryContext parentcontext);
+
+static Datum
+expand_collection(Datum collectiondatum, MemoryContext parentcontext)
+{
+	/* If the source is an expanded collection, copy it to make it writable */
+	if (VARATT_IS_EXTERNAL_EXPANDED(DatumGetPointer(collectiondatum)))
+	{
+		CollectionHeader *src_colhdr = (CollectionHeader *) DatumGetEOHP(collectiondatum);
+		CollectionHeader *copyhdr;
+		MemoryContext oldcxt;
+		collection *iter;
+		collection *item;
+
+		Assert(src_colhdr->collection_magic == COLLECTION_MAGIC);
+
+		/* Create a writable copy */
+		copyhdr = construct_empty_collection(parentcontext);
+
+		if (src_colhdr->head)
+		{
+			oldcxt = MemoryContextSwitchTo(copyhdr->hdr.eoh_context);
+
+			copyhdr->value_type = src_colhdr->value_type;
+			copyhdr->value_type_len = src_colhdr->value_type_len;
+			copyhdr->value_byval = src_colhdr->value_byval;
+
+			/* Copy items in the same order to preserve iteration */
+			for (iter = src_colhdr->head; iter != NULL; iter = iter->hh.next)
+			{
+				char	   *key;
+				int			key_len = strlen(iter->key);
+				collection *replaced_item;
+
+				key = palloc(key_len + 1);
+				memset(key, 0, key_len + 1);
+				strcpy(key, iter->key);
+
+				item = palloc(sizeof(collection));
+				item->key = key;
+				item->isnull = iter->isnull;
+				if (!iter->isnull)
+					item->value = datumCopy(iter->value, src_colhdr->value_byval, src_colhdr->value_type_len);
+
+				HASH_REPLACE(hh, copyhdr->head, key[0], key_len, item, replaced_item);
+				if (replaced_item)
+				{
+					if (replaced_item->key)
+						pfree(replaced_item->key);
+					if (replaced_item->isnull == false && replaced_item->value)
+						pfree(DatumGetPointer(replaced_item->value));
+					pfree(replaced_item);
+				}
+
+				/* Set current to match the source's current position exactly */
+				if (iter == src_colhdr->current)
+					copyhdr->current = item;
+			}
+
+			/* If source current was NULL, keep it NULL */
+			if (src_colhdr->current == NULL)
+				copyhdr->current = NULL;
+			/* If we didn't find a matching current, default to first */
+			else if (copyhdr->current == NULL && copyhdr->head)
+				copyhdr->current = copyhdr->head;
+
+			MemoryContextSwitchTo(oldcxt);
+		}
+		else
+		{
+			copyhdr->value_type = src_colhdr->value_type;
+			copyhdr->value_type_len = src_colhdr->value_type_len;
+			copyhdr->value_byval = src_colhdr->value_byval;
+		}
+
+		return EOHPGetRWDatum(&copyhdr->hdr);
+	}
+
+	/* For flat collections, expand them properly */
+	{
+		CollectionHeader *new_colhdr;
+		FlatCollectionType *fc;
+		MemoryContext oldcxt;
+		int			location = 0;
+		int			i = 0;
+		struct varlena *attr = NULL;
+		collection *item;
+
+		pgstat_report_wait_start(collection_we_expand);
+
+		/* Check whether toasted or not */
+		if (VARATT_IS_EXTENDED(DatumGetPointer(collectiondatum)))
+		{
+			attr = PG_DETOAST_DATUM_COPY(collectiondatum);
+			fc = (FlatCollectionType *) attr;
+		}
+		else
+			fc = (FlatCollectionType *) (DatumGetPointer(collectiondatum));
+
+		/* Validate that the type exists */
+		lookup_type_cache(fc->value_type, 0);
+
+		new_colhdr = construct_empty_collection(parentcontext);
+
+		oldcxt = MemoryContextSwitchTo(new_colhdr->hdr.eoh_context);
+
+		new_colhdr->value_type = fc->value_type;
+		get_typlenbyval(fc->value_type, &new_colhdr->value_type_len, &new_colhdr->value_byval);
+
+		while (i < fc->num_entries)
+		{
+			int16		key_len;
+			size_t		value_len;
+			char	   *key;
+
+			memcpy(&key_len, fc->values + location, sizeof(int16));
+			location += sizeof(int16);
+
+			memcpy(&value_len, fc->values + location, sizeof(size_t));
+			location += sizeof(size_t);
+
+			key = palloc(key_len + 1);
+			memcpy(key, fc->values + location, key_len);
+			key[key_len] = '\0';
+			location += key_len;
+
+			item = (collection *) palloc(sizeof(collection));
+			item->key = key;
+
+			if (value_len == 0)
+				item->isnull = true;
+			else
+			{
+				item->isnull = false;
+
+				if (new_colhdr->value_type_len != -1)
+				{
+					/* Fixed-length type: read directly from buffer */
+					Datum		temp_value;
+
+					memcpy(&temp_value, fc->values + location, value_len);
+					item->value = datumCopy(temp_value, new_colhdr->value_byval, value_len);
+				}
+				else
+				{
+					/*
+					 * Variable-length type: pass pointer directly to
+					 * datumCopy
+					 */
+					item->value = datumCopy((Datum) (fc->values + location), new_colhdr->value_byval, value_len);
+				}
+			}
+			location += value_len;
+
+			HASH_ADD_KEYPTR(hh, new_colhdr->head, key, strlen(key), item);
+
+			if (!new_colhdr->current)
+				new_colhdr->current = new_colhdr->head;
+
+			i++;
+		}
+
+		MemoryContextSwitchTo(oldcxt);
+
+		if (attr)
+			pfree(attr);
+
+		pgstat_report_wait_end();
+
+		return EOHPGetRWDatum(&new_colhdr->hdr);
+	}
+}
+
 static const ExpandedObjectMethods collection_expand_methods =
 {
 	collection_get_flat_size,
@@ -240,16 +413,20 @@ DatumGetExpandedCollection(Datum d)
 	int			i = 0;
 	struct varlena *attr;
 
+	/* If it's a writable expanded collection already, just return it */
 	if (VARATT_IS_EXTERNAL_EXPANDED(DatumGetPointer(d)))
 	{
 		colhdr = (CollectionHeader *) DatumGetEOHP(d);
 
 		Assert(colhdr->collection_magic == COLLECTION_MAGIC);
 
-		return colhdr;
+		d = expand_collection(d, CurrentMemoryContext);
+		return (CollectionHeader *) DatumGetEOHP(d);
 	}
 
-	pgstat_report_wait_start(collection_we_expand);
+	/* Else expand the hard way */
+	d = expand_collection(d, CurrentMemoryContext);
+	return (CollectionHeader *) DatumGetEOHP(d);
 
 	/* Check whether toasted or not */
 	if (VARATT_IS_EXTENDED(DatumGetPointer(d)))
