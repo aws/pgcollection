@@ -24,6 +24,9 @@ DATA_built = $(EXTENSION).control
 
 PG_CPPFLAGS += -I./include/
 
+# Suppress fallthrough warnings from uthash macros
+PG_CPPFLAGS += -Wno-implicit-fallthrough
+
 # enable a bloom filter to speed up finds
 PG_CPPFLAGS += -DHASH_BLOOM=16
 
