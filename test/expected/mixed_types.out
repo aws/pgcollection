@@ -1,0 +1,183 @@
+-- Test using collection and icollection together to ensure no interaction problems
+-- Test 1: Use both types in same DO block
+DO $$
+DECLARE
+    c collection('text');
+    ic icollection('text');
+BEGIN
+    c['key1'] := 'collection value';
+    ic[1] := 'icollection value';
+    
+    RAISE NOTICE 'collection: %', c['key1'];
+    RAISE NOTICE 'icollection: %', ic[1];
+    RAISE NOTICE 'collection count: %', count(c);
+    RAISE NOTICE 'icollection count: %', count(ic);
+END $$;
+NOTICE:  collection: collection value
+NOTICE:  icollection: icollection value
+NOTICE:  collection count: 1
+NOTICE:  icollection count: 1
+-- Test 2: Iterate both types in same block
+DO $$
+DECLARE
+    c collection('int4');
+    ic icollection('int4');
+BEGIN
+    c['a'] := 1;
+    c['b'] := 2;
+    ic[10] := 100;
+    ic[20] := 200;
+    
+    c := first(c);
+    WHILE NOT isnull(c) LOOP
+        RAISE NOTICE 'collection key: %, value: %', key(c), value(c);
+        c := next(c);
+    END LOOP;
+    
+    ic := first(ic);
+    WHILE NOT isnull(ic) LOOP
+        RAISE NOTICE 'icollection key: %, value: %', key(ic), value(ic);
+        ic := next(ic);
+    END LOOP;
+END $$;
+ERROR:  Value type does not match the return type
+CONTEXT:  PL/pgSQL function inline_code_block line 13 at RAISE
+-- Test 3: Copy and sort both types
+DO $$
+DECLARE
+    c1 collection('text');
+    c2 collection('text');
+    ic1 icollection('text');
+    ic2 icollection('text');
+BEGIN
+    c1['z'] := 'last';
+    c1['a'] := 'first';
+    c2 := copy(c1);
+    c2 := sort(c2);
+    
+    ic1[3] := 'third';
+    ic1[1] := 'first';
+    ic2 := copy(ic1);
+    ic2 := sort(ic2);
+    
+    RAISE NOTICE 'collection sorted first key: %', first_key(c2);
+    RAISE NOTICE 'icollection sorted first key: %', first_key(ic2);
+END $$;
+NOTICE:  collection sorted first key: a
+NOTICE:  icollection sorted first key: 1
+-- Test 4: Table functions for both types
+SELECT 'collection keys' as type, * FROM keys_to_table(add(add('{}'::collection, 'a', 'val1'::text), 'b', 'val2'::text)) ORDER BY 1;
+ERROR:  unexpected object end
+LINE 1: ...ction keys' as type, * FROM keys_to_table(add(add('{}'::coll...
+                                                             ^
+SELECT 'icollection keys' as type, * FROM keys_to_table(add(add('{}'::icollection, 1, 'val1'::text), 2, 'val2'::text)) ORDER BY 1;
+ERROR:  unexpected object end
+LINE 1: ...ction keys' as type, * FROM keys_to_table(add(add('{}'::icol...
+                                                             ^
+-- Test 5: NULL handling in both types
+DO $$
+DECLARE
+    c collection('text');
+    ic icollection('text');
+BEGIN
+    c['key1'] := NULL;
+    ic[1] := NULL;
+    
+    RAISE NOTICE 'collection has NULL: %', exist(c, 'key1');
+    RAISE NOTICE 'icollection has NULL: %', exist(ic, 1);
+END $$;
+NOTICE:  collection has NULL: t
+NOTICE:  icollection has NULL: t
+-- Test 6: Key navigation for both types
+DO $$
+DECLARE
+    c collection('text');
+    ic icollection('text');
+BEGIN
+    c['a'] := 'first';
+    c['b'] := 'second';
+    c['c'] := 'third';
+    
+    ic[1] := 'first';
+    ic[2] := 'second';
+    ic[3] := 'third';
+    
+    RAISE NOTICE 'collection next_key(a): %', next_key(c, 'a');
+    RAISE NOTICE 'icollection next_key(1): %', next_key(ic, 1);
+    RAISE NOTICE 'collection last_key: %', last_key(c);
+    RAISE NOTICE 'icollection last_key: %', last_key(ic);
+END $$;
+NOTICE:  collection next_key(a): b
+NOTICE:  icollection next_key(1): 2
+NOTICE:  collection last_key: c
+NOTICE:  icollection last_key: 3
+-- Test 7: Delete operations on both types
+DO $$
+DECLARE
+    c collection('text');
+    ic icollection('text');
+BEGIN
+    c['a'] := 'val1';
+    c['b'] := 'val2';
+    c := delete(c, 'a');
+    
+    ic[1] := 'val1';
+    ic[2] := 'val2';
+    ic := delete(ic, 1);
+    
+    RAISE NOTICE 'collection count after delete: %', count(c);
+    RAISE NOTICE 'icollection count after delete: %', count(ic);
+END $$;
+NOTICE:  collection count after delete: 1
+NOTICE:  icollection count after delete: 1
+-- Test 8: JSON parsing for both types
+SELECT count('{"value_type":"text","entries":{"a":"hello","b":"world"}}'::collection);
+ count 
+-------
+     2
+(1 row)
+
+SELECT count('{"value_type":"text","entries":{"1":"hello","2":"world"}}'::icollection);
+ count 
+-------
+     2
+(1 row)
+
+-- Test 9: Mixed operations in procedure
+CREATE OR REPLACE PROCEDURE test_mixed_types(INOUT c collection, INOUT ic icollection)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    c['new'] := 'added';
+    ic[99] := 'added';
+END $$;
+DO $$
+DECLARE
+    c collection('text');
+    ic icollection('text');
+BEGIN
+    c['orig'] := 'original';
+    ic[1] := 'original';
+    
+    CALL test_mixed_types(c, ic);
+    
+    RAISE NOTICE 'collection count: %', count(c);
+    RAISE NOTICE 'icollection count: %', count(ic);
+END $$;
+NOTICE:  collection count: 2
+NOTICE:  icollection count: 2
+DROP PROCEDURE test_mixed_types;
+-- Test 10: Value type checking for both
+DO $$
+DECLARE
+    c collection('int4');
+    ic icollection('int4');
+BEGIN
+    c['key'] := 42;
+    ic[1] := 42;
+    
+    RAISE NOTICE 'collection value_type: %', value_type(c);
+    RAISE NOTICE 'icollection value_type: %', value_type(ic);
+END $$;
+NOTICE:  collection value_type: integer
+NOTICE:  icollection value_type: 23

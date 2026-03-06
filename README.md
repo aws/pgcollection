@@ -1,22 +1,19 @@
 ## pgcollection
 
-pgcollection is a memory optimized data type for PostgreSQL. The primary usage
-is a high performance data structure inside of plpglsql functions. Like other
-PostgreSQL data types, a collection can be a column of a table, but there are
-no operators.
+pgcollection provides two memory-optimized data types for PostgreSQL: `collection` (text-keyed) and `icollection` (integer-keyed). The primary usage is high-performance data structures inside plpgsql functions. Like other PostgreSQL data types, collections can be columns in tables, but there are no operators.
 
-A collection is a set of key-value pairs. Each key is a unique string of type
-`text` with a maximum length of 32,767 characters. Entries are stored in
-creation order. A collection can hold an unlimited number of elements,
-constrained by the memory available to the database. A collection is stored as
-a PostgreSQL `varlena` limiting the maximum size to 1GB if the structure was
-persisted to a column in a table.
+### collection (Text Keys)
 
-The value of an element can be any PostgreSQL type including composite types
-with a default of type `text`. All elements in a collection must be of the
-same type.
+A collection is a set of key-value pairs where each key is a unique string of type `text` with a maximum length of 32,767 characters. Entries are stored in creation order.
+
+### icollection (Integer Keys)
+
+An icollection is a set of key-value pairs where each key is a unique 64-bit integer (`bigint`). This enables sparse arrays and distinguishes between NULL values and uninitialized elements - a limitation of PostgreSQL arrays.
+
+Both types can hold an unlimited number of elements (constrained by available memory) and are stored as PostgreSQL `varlena` structures (1GB maximum if persisted to a table column). Values can be any PostgreSQL type including composite types, with a default of `text`. All elements in a collection must be of the same type.
 
 ```sql
+-- collection example (text keys)
 DO
 $$
 DECLARE
@@ -31,6 +28,21 @@ BEGIN
     RAISE NOTICE 'The capital of % is %', key(t_capital), value(t_capital);
     t_capital := next(t_capital);
   END LOOP;
+END
+$$;
+
+-- icollection example (integer keys)
+DO
+$$
+DECLARE
+  sparse  icollection('text');
+BEGIN
+  sparse[1]       := 'first';
+  sparse[1000]    := 'thousandth';
+  sparse[1000000] := 'millionth';
+  
+  RAISE NOTICE 'Count: %', count(sparse);  -- Only 3 entries stored
+  RAISE NOTICE 'Value at 1000: %', sparse[1000];
 END
 $$;
 ```
@@ -59,6 +71,10 @@ CREATE EXTENSION collection;
 
 ## List of Functions
 
+Both `collection` and `icollection` support the same set of functions. The only difference is the key type: `text` for collection, `bigint` for icollection.
+
+### collection Functions
+
 |      Function Name                      |    Return Type          |    Description                                                                             |
 | --------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------ |
 | add(collection, text, text)             | collection              | Adds an text item to a collection                                                          |
@@ -72,10 +88,10 @@ CREATE EXTENSION collection;
 | last(collection)                        | collection              | Sets the collection iterator to the last item                                              |
 | next(collection)                        | collection              | Sets the collection iterator to the next item                                              |
 | prev(collection)                        | collection              | Sets the collection iterator to the previous item                                          |
-| first_key(collection)                   | collection              | Returns the key of the first item in the collection                                        |
-| last_key(collection)                    | collection              | Returns the key of the last item in the collection                                         |
-| next_key(collection, text)              | collection              | Returns the key of the next item in the collection for the given key                       |
-| prev_key(collection, text)              | collection              | Returns the key of the previous item in the collection for the given key                   |
+| first_key(collection)                   | text                    | Returns the key of the first item in the collection                                        |
+| last_key(collection)                    | text                    | Returns the key of the last item in the collection                                         |
+| next_key(collection, text)              | text                    | Returns the key of the next item in the collection for the given key                       |
+| prev_key(collection, text)              | text                    | Returns the key of the previous item in the collection for the given key                   |
 | copy(collection)                        | collection              | Returns a copy of a collection without a context switch                                    |
 | sort(collection)                        | collection              | Sorts a collection by the keys in collation order and points to the first item             |
 | isnull(collection)                      | bool                    | Returns true if the current location of the iterator is null                               |
@@ -88,6 +104,34 @@ CREATE EXTENSION collection;
 | to_table(collection)                    | TABLE(text, text)       | Returns all of the keys and values as text in the collection                               |
 | to_table(collection, anyelement)        | TABLE(text, anyelement) | Returns all of the keys and values as anyelement in the collection                         |
 | value_type(collection)                  | regtype                 | Returns the data type of the elements within the collection                                |
+
+### icollection Functions
+
+|      Function Name                      |    Return Type          |    Description                                                                             |
+| --------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------ |
+| add(icollection, bigint, text)          | icollection             | Adds an text item to an icollection                                                        |
+| add(icollection, bigint, anyelement)    | icollection             | Adds an anyelement item to an icollection                                                  |
+| count(icollection)                      | int4                    | Returns the number of items in an icollection                                              |
+| delete(icollection, bigint)             | icollection             | Deletes an item from an icollection                                                        |
+| exist(icollection, bigint)              | bool                    | Returns true if a given key exists in the icollection                                      |
+| find(icollection, bigint)               | text                    | Returns a text item from an icollection if it exists                                       |
+| first(icollection)                      | icollection             | Sets the icollection iterator to the first item                                            |
+| last(icollection)                       | icollection             | Sets the icollection iterator to the last item                                             |
+| next(icollection)                       | icollection             | Sets the icollection iterator to the next item                                             |
+| prev(icollection)                       | icollection             | Sets the icollection iterator to the previous item                                         |
+| first_key(icollection)                  | bigint                  | Returns the key of the first item in the icollection                                       |
+| last_key(icollection)                   | bigint                  | Returns the key of the last item in the icollection                                        |
+| next_key(icollection, bigint)           | bigint                  | Returns the key of the next item in the icollection for the given key                      |
+| prev_key(icollection, bigint)           | bigint                  | Returns the key of the previous item in the icollection for the given key                  |
+| copy(icollection)                       | icollection             | Returns a copy of an icollection without a context switch                                  |
+| sort(icollection)                       | icollection             | Sorts an icollection by the keys numerically and points to the first item                  |
+| isnull(icollection)                     | bool                    | Returns true if the current location of the iterator is null                               |
+| key(icollection)                        | bigint                  | Returns the key of the item the icollection is pointed at                                  |
+| value(icollection)                      | text                    | Returns the value as text of the item the icollection is pointed at                        |
+| keys_to_table(icollection)              | SETOF bigint            | Returns all of the keys in the icollection                                                 |
+| values_to_table(icollection)            | SETOF text              | Returns all of the values as text in the icollection                                       |
+| to_table(icollection)                   | TABLE(bigint, text)     | Returns all of the keys and values as text in the icollection                              |
+| value_type(icollection)                 | regtype                 | Returns the data type of the elements within the icollection                               |
 
 ## Finding an Item in a Collection
 
@@ -112,10 +156,11 @@ $$;
 
 ## Using Subscripts
 
-In addition to these functions, collections can be subscripted, allowing them 
-to act like associative arrays. Only a single subscript of type `text` can be 
-specified. It is interpreted as a key and the corresponding value is fetched 
-or assigned.
+Both collection and icollection support subscripting, allowing them to act like associative arrays.
+
+### collection Subscripts (text keys)
+
+Collections use a single subscript of type `text` interpreted as a key:
 
 ```sql
 DO
@@ -130,7 +175,7 @@ END
 $$;
 ```
 
-If the subscript is `null`, the current element will be fetched.
+If the subscript is `null`, the current element will be fetched:
 
 ```sql
 DO
@@ -145,15 +190,51 @@ END
 $$;
 ```
 
+### icollection Subscripts (integer keys)
+
+icollections use a single subscript of type `bigint` interpreted as a key:
+
+```sql
+DO
+$$
+DECLARE
+  sparse  icollection('text');
+BEGIN
+  sparse[1] := 'first';
+  sparse[100] := 'hundredth';
+
+  RAISE NOTICE 'Value at 1: %', sparse[1];
+  RAISE NOTICE 'Value at 100: %', sparse[100];
+END
+$$;
+```
+
+Like collection, a `null` subscript fetches the current element:
+
+```sql
+DO
+$$
+DECLARE
+  ic  icollection('text');
+BEGIN
+  ic[1] := 'first';
+  ic := first(ic);
+  
+  RAISE NOTICE 'Current value: %', ic[null];
+END
+$$;
+```
+
 ## Setting The Element Type
 
-The default type of a collection's element is `text`, however it can contain
-any valid PostgreSQL type. The type can be set in two ways. The first is by
-explicitly setting it as the type modifier when declaring the collection. If
-no type modifier is defined, the type of the first element added to the 
-collection using the `add` function will define the type of the collection.
-If no type modifier is set, any subscript assignments or fetches will be cast
-to type `text`.
+The default type of a collection's element is `text`, however it can contain any valid PostgreSQL type. The type can be set in two ways:
+
+1. **Type modifier** - Explicitly set when declaring the collection/icollection
+2. **First element** - If no type modifier is defined, the type of the first element added using `add()` defines the collection type
+
+If no type modifier is set, subscript assignments or fetches will be cast to type `text`.
+
+### collection Type Modifier
 
 ```sql
 DO 
@@ -167,6 +248,71 @@ BEGIN
 END
 $$;
 ```
+
+### icollection Type Modifier
+
+```sql
+DO 
+$$
+DECLARE
+  ic1   icollection('int4');
+BEGIN
+  ic1[1] := 42;
+  ic1[2] := 100;
+
+  RAISE NOTICE 'Sum: %', ic1[1] + ic1[2];
+END
+$$;
+```
+
+## icollection: Sparse Arrays and NULL Distinction
+
+icollection solves a fundamental limitation of PostgreSQL arrays: the inability to distinguish between uninitialized elements and elements explicitly set to NULL.
+
+### Sparse Arrays
+
+icollection efficiently stores non-contiguous integer keys without allocating memory for gaps:
+
+```sql
+DO
+$$
+DECLARE
+  sparse  icollection('text');
+BEGIN
+  sparse[1]       := 'first';
+  sparse[1000]    := 'thousandth';
+  sparse[1000000] := 'millionth';
+  
+  RAISE NOTICE 'Count: %', count(sparse);  -- Only 3 entries
+  RAISE NOTICE 'Exists at 500: %', exist(sparse, 500);  -- false
+END
+$$;
+```
+
+### NULL vs Uninitialized
+
+icollection distinguishes between keys that don't exist and keys explicitly set to NULL:
+
+```sql
+DO
+$$
+DECLARE
+  ic  icollection('text');
+BEGIN
+  ic[1] := 'value';
+  ic[2] := NULL;  -- Explicitly NULL
+  
+  RAISE NOTICE 'Key 1 exists: %', exist(ic, 1);  -- true
+  RAISE NOTICE 'Key 2 exists: %', exist(ic, 2);  -- true (explicitly NULL)
+  RAISE NOTICE 'Key 3 exists: %', exist(ic, 3);  -- false (uninitialized)
+  
+  RAISE NOTICE 'Value at 2: %', ic[2];  -- NULL
+  -- ic[3] would raise an error (key not found)
+END
+$$;
+```
+
+This distinction is impossible with PostgreSQL arrays where `array[2]` returns NULL for both uninitialized and explicitly NULL elements.
 
 ## Iterating Over a Collection
 
@@ -389,11 +535,9 @@ are operating can assist in finding bottlenecks or wider performance problems.
 
 ### Wait Events
 
-PostgreSQL 17 introduced custom wait events enabling extensions to define
-events specific to the extension. `pgcollection` introduces a number of 
-custom wait events allowing detailed monitoring. Prior to PostgreSQL 17,
-all of the wait events are rolled up into the common `Extension:extension`
-wait event. 
+PostgreSQL 17 introduced custom wait events enabling extensions to define events specific to the extension. `pgcollection` introduces a number of custom wait events allowing detailed monitoring. Prior to PostgreSQL 17, all wait events are rolled up into the common `Extension:extension` wait event.
+
+#### collection Wait Events
 
 |      Wait Event               |    Description                                                               |
 | ----------------------------- | ---------------------------------------------------------------------------- |
@@ -414,19 +558,28 @@ wait event.
 | CollectionInput               | Converting a collection from a string format to an optimized expanded format |
 | CollectionOutput              | Converting a collection to a string format for output                        |
 
+#### icollection Wait Events
+
+|      Wait Event               |    Description                                                               |
+| ----------------------------- | ---------------------------------------------------------------------------- |
+| ICollectionFetch              | Fetching an item in an icollection using a subscript                         |
+| ICollectionAssign             | Assigning a new item to an icollection using a subscript                     |
+
+Note: icollection shares the same wait events as collection for most operations (add, find, delete, etc.) since they use the same underlying statistics tracking.
+
 ### Usage Statistics
 
-The `collection_stats` view provides the following fields for a session:
+The `collection_stats` view provides the following fields for a session. These statistics track operations on both `collection` and `icollection` types:
 
 | fieldname       | description                                                               |
 |-----------------|---------------------------------------------------------------------------|
-| add             | The number of adds or assigns to a collection for a session               |
+| add             | The number of adds or assigns to a collection/icollection for a session  |
 | context_switch  | The number of times a collection switches to a different memory context   |
-| delete          | The number of deletes from a collection for a session                     |
-| find            | The number of finds or fetches from a collection for a session            |
-| sort            | The number of collection sorts for a session                              |
+| delete          | The number of deletes from a collection/icollection for a session        |
+| find            | The number of finds or fetches from a collection/icollection for a session |
+| sort            | The number of collection/icollection sorts for a session                 |
 
-The `collection_stats_reset()` function removes all stored statistics for the session
+The `collection_stats_reset()` function removes all stored statistics for the session.
 
 
 ## Contributing

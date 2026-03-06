@@ -220,11 +220,27 @@ icollection_delete(PG_FUNCTION_ARGS)
 	hdr = fetch_icollection(fcinfo, 0);
 	key = PG_GETARG_INT64(1);
 
-	ICOLLECTION_HASH_FIND(hdr->head, &key, item);
-	if (item != NULL)
+	if (hdr->head)
 	{
+		ICOLLECTION_HASH_FIND(hdr->head, &key, item);
+
+		if (item == NULL)
+			PG_RETURN_DATUM(EOHPGetRWDatum(&hdr->hdr));
+
+		if (item == hdr->current)
+			hdr->current = item->hh.next;
+
 		ICOLLECTION_HASH_DELETE(hdr->head, item);
+
+		if (!item->isnull && item->value && !hdr->value_byval)
+			pfree(DatumGetPointer(item->value));
 		pfree(item);
+
+		if (HASH_COUNT(hdr->head) == 0)
+		{
+			hdr->head = NULL;
+			hdr->current = NULL;
+		}
 	}
 
 	PG_RETURN_DATUM(EOHPGetRWDatum(&hdr->hdr));

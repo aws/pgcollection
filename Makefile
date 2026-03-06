@@ -17,7 +17,7 @@ OBJS = src/collection.o \
 		src/icollection_subs.o \
 		src/icollection_parse.o
 
-REGRESS = collection subscript iteration srf select inout_params icollection icollection_inout icollection_subscript
+REGRESS = collection subscript iteration srf select inout_params icollection icollection_inout icollection_subscript mixed_types
 REGRESS_OPTS = --inputdir=test --outputdir=test --load-extension=collection
 
 EXTRA_CLEAN = test/results/ test/regression.diffs test/regression.out \
