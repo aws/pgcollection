@@ -39,6 +39,16 @@ PG_MODULE_MAGIC;
 
 static Datum expand_collection(Datum collectiondatum, MemoryContext parentcontext);
 
+/*
+ * expand_collection
+ *		Expand a collection datum into a writable expanded object
+ *		Preserves iterator position when copying from another expanded object
+ *
+ * NOTE: This function parallels expand_icollection() in icollection.c.
+ * Any changes to the logic here should be mirrored there for consistency.
+ * The two implementations differ only in key type (char* vs int64) and
+ * hash table operations.
+ */
 static Datum
 expand_collection(Datum collectiondatum, MemoryContext parentcontext)
 {
@@ -240,6 +250,8 @@ _PG_init(void)
 	collection_we_assign = WaitEventExtensionNew("CollectionAssign");
 	collection_we_input = WaitEventExtensionNew("CollectionInput");
 	collection_we_output = WaitEventExtensionNew("CollectionOutput");
+	icollection_we_fetch = WaitEventExtensionNew("ICollectionFetch");
+	icollection_we_assign = WaitEventExtensionNew("ICollectionAssign");
 #else
 	collection_we_flatsize = PG_WAIT_EXTENSION;
 	collection_we_flatten = PG_WAIT_EXTENSION;
@@ -256,6 +268,8 @@ _PG_init(void)
 	collection_we_assign = PG_WAIT_EXTENSION;
 	collection_we_input = PG_WAIT_EXTENSION;
 	collection_we_output = PG_WAIT_EXTENSION;
+	icollection_we_fetch = PG_WAIT_EXTENSION;
+	icollection_we_assign = PG_WAIT_EXTENSION;
 #endif
 }
 

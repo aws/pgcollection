@@ -80,6 +80,43 @@ typedef struct CollectionHeader
 	collection *head;
 }			CollectionHeader;
 
+/*
+ * Integer-keyed collection entry
+ */
+typedef struct icollection
+{
+	int64		key;
+	Datum		value;
+	bool		isnull;
+	UT_hash_handle hh;
+}			icollection;
+
+/*
+ * Header for expanded icollection objects
+ */
+typedef struct ICollectionHeader
+{
+	/* Standard header for expanded objects */
+	ExpandedObjectHeader hdr;
+
+	/* Magic value identifying an expanded icollection (for debugging only) */
+	int			collection_magic;
+
+	Oid			value_type;		/* value type OID */
+	int16		value_type_len;
+	bool		value_byval;
+
+	/*
+	 * flat_size is the current space requirement for the flat equivalent of
+	 * the expanded icollection, if known; otherwise it's 0.  We store this to
+	 * make consecutive calls of get_flat_size cheap.
+	 */
+	size_t		flat_size;
+
+	icollection *current;
+	icollection *head;
+}			ICollectionHeader;
+
 typedef struct FlatCollectionType
 {
 	int32		vl_len_;		/* varlena header (do not touch directly!) */
@@ -105,10 +142,30 @@ extern CollectionHeader * fetch_collection(FunctionCallInfo fcinfo, int argno);
 extern CollectionHeader * construct_empty_collection(MemoryContext parentcontext);
 CollectionHeader *DatumGetExpandedCollection(Datum d);
 
+extern ICollectionHeader * parse_icollection(char *json);
+extern ICollectionHeader * construct_empty_icollection(MemoryContext parentcontext);
+extern ICollectionHeader * fetch_icollection(FunctionCallInfo fcinfo, int argno);
+ICollectionHeader *DatumGetExpandedICollection(Datum d);
+
 /* "Methods" required for an expanded object */
 Size		collection_get_flat_size(ExpandedObjectHeader *eohptr);
 void		collection_flatten_into(ExpandedObjectHeader *eohptr,
 									void *result, Size allocated_size);
+
+/*
+ * Hash operation macros for integer-keyed collections
+ */
+#define ICOLLECTION_HASH_FIND(head, key_int_ptr, item) \
+	HASH_FIND_INT(head, key_int_ptr, item)
+
+#define ICOLLECTION_HASH_ADD(head, key_field, item) \
+	HASH_ADD_INT(head, key_field, item)
+
+#define ICOLLECTION_HASH_REPLACE(head, key_field, item, replaced) \
+	HASH_REPLACE_INT(head, key_field, item, replaced)
+
+#define ICOLLECTION_HASH_DELETE(head, item) \
+	HASH_DELETE(hh, head, item)
 
 /* custom wait event values, retrieved from shared memory */
 extern uint32 collection_we_flatsize;
@@ -128,5 +185,8 @@ extern uint32 collection_we_fetch;
 extern uint32 collection_we_assign;
 extern uint32 collection_we_input;
 extern uint32 collection_we_output;
+
+extern uint32 icollection_we_fetch;
+extern uint32 icollection_we_assign;
 
 #endif							/* __COLLECTION_H__ */
