@@ -190,6 +190,27 @@ SELECT delete('{}'::icollection, 999);  -- delete non-existent key
 ERROR:  unexpected object end
 LINE 1: SELECT delete('{}'::icollection, 999);
                       ^
+-- Test delete with pass-by-value types (int4) - regression test for bug fixed in commit 16eecda
+DO $$
+DECLARE
+    ic icollection('int4');
+BEGIN
+    ic := add(ic, 1, 10);
+    ic := add(ic, 2, 20);
+    ic := add(ic, 3, 30);
+    
+    ic := delete(ic, 1);
+    RAISE NOTICE 'After delete 1, count: %', count(ic);
+    
+    ic := delete(ic, 2);
+    RAISE NOTICE 'After delete 2, count: %', count(ic);
+    
+    ic := delete(ic, 3);
+    RAISE NOTICE 'After delete 3, count: %', count(ic);
+END $$;
+NOTICE:  After delete 1, count: 2
+NOTICE:  After delete 2, count: 1
+NOTICE:  After delete 3, count: 0
 -- Test iterator functions
 DO $$
 DECLARE

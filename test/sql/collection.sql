@@ -469,6 +469,25 @@ END $$;
 
 SELECT delete('{"value_type": "pg_catalog.text", "entries": {"A": "A", "B": "B", "C": "C"}}'::collection, 'A');
 
+-- Test delete with pass-by-value types (int4) - regression test for bug fixed in commit 16eecda
+DO $$
+DECLARE
+    c collection('int4');
+BEGIN
+    c := add(c, 'a', 1);
+    c := add(c, 'b', 2);
+    c := add(c, 'c', 3);
+    
+    c := delete(c, 'a');
+    RAISE NOTICE 'After delete a, count: %', count(c);
+    
+    c := delete(c, 'b');
+    RAISE NOTICE 'After delete b, count: %', count(c);
+    
+    c := delete(c, 'c');
+    RAISE NOTICE 'After delete c, count: %', count(c);
+END $$;
+
 DO $$
 DECLARE
   arr_instance collection('collection');

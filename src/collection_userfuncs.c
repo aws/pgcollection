@@ -312,7 +312,7 @@ collection_delete(PG_FUNCTION_ARGS)
 		HASH_DEL(colhdr->head, item);
 		if (item->key)
 			pfree(item->key);
-		if (!item->isnull && item->value)
+		if (!item->isnull && item->value && !colhdr->value_byval)
 			pfree(DatumGetPointer(item->value));
 		pfree(item);
 

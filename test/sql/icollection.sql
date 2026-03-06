@@ -121,6 +121,25 @@ SELECT delete(add(add('{}'::icollection, 1, 'hello'::text), 2, 'world'::text), 1
 SELECT count(delete(add(add('{}'::icollection, 1, 'hello'::text), 2, 'world'::text), 1));
 SELECT delete('{}'::icollection, 999);  -- delete non-existent key
 
+-- Test delete with pass-by-value types (int4) - regression test for bug fixed in commit 16eecda
+DO $$
+DECLARE
+    ic icollection('int4');
+BEGIN
+    ic := add(ic, 1, 10);
+    ic := add(ic, 2, 20);
+    ic := add(ic, 3, 30);
+    
+    ic := delete(ic, 1);
+    RAISE NOTICE 'After delete 1, count: %', count(ic);
+    
+    ic := delete(ic, 2);
+    RAISE NOTICE 'After delete 2, count: %', count(ic);
+    
+    ic := delete(ic, 3);
+    RAISE NOTICE 'After delete 3, count: %', count(ic);
+END $$;
+
 -- Test iterator functions
 DO $$
 DECLARE
