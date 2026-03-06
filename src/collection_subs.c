@@ -126,7 +126,6 @@ collection_subscript_fetch(ExprState *state,
 	CollectionHeader *colhdr;
 	collection *item;
 	char	   *key;
-	Datum		value;
 
 	if (sbsrefstate->upperindexnull[0])
 	{
@@ -146,7 +145,7 @@ collection_subscript_fetch(ExprState *state,
 
 	colhdr = (CollectionHeader *) DatumGetExpandedCollection(*op->resvalue);
 
-	/* Check for null subscript */
+	/* NULL subscript returns current iterator value */
 	if (sbsrefstate->upperindexnull[0])
 	{
 		*op->resvalue = datumCopy(colhdr->current->value, colhdr->value_byval, colhdr->value_type_len);
@@ -166,24 +165,14 @@ collection_subscript_fetch(ExprState *state,
 				(errcode(ERRCODE_NO_DATA_FOUND),
 				 errmsg("key \"%s\" not found", key)));
 	}
-	else if (item->isnull)
-		value = (Datum) 0;
-	else
-		value = collection_coerce_value(item->value, colhdr->value_type,
-										colhdr->value_byval,
-										colhdr->value_type_len,
-										workspace->value_type);
 
-	if (value == (Datum) 0)
-		*op->resnull = true;
-	else
-		*op->resnull = false;
-
-	*op->resvalue = value;
+	*op->resvalue = collection_fetch_value((CollectionHeaderCommon *) colhdr,
+										   item->value, item->isnull,
+										   workspace->value_type,
+										   op->resnull);
 
 	stats.find++;
 	pgstat_report_wait_end();
-
 }
 
 /*
@@ -204,6 +193,8 @@ collection_subscript_assign(ExprState *state,
 	collection *item;
 	collection *replaced_item;
 	char	   *key;
+	Datum		item_value;
+	bool		item_isnull;
 
 	/* Check for null subscript */
 	if (sbsrefstate->upperindexnull[0])
@@ -221,65 +212,34 @@ collection_subscript_assign(ExprState *state,
 		colhdr = (CollectionHeader *) DatumGetExpandedCollection(*op->resvalue);
 	}
 
-	if (colhdr->value_type == InvalidOid)
-	{
-		colhdr->value_type = workspace->value_type;
-		colhdr->value_type_len = workspace->value_type_len;
-		colhdr->value_byval = workspace->value_byval;
-	}
-	else if (workspace->value_type != colhdr->value_type)
-	{
-		/*
-		 * Collection has existing type - update workspace to match and ensure
-		 * correct type properties
-		 */
-		workspace->value_type = colhdr->value_type;
-		get_typlenbyval(colhdr->value_type, &workspace->value_type_len, &workspace->value_byval);
-		colhdr->value_type_len = workspace->value_type_len;
-		colhdr->value_byval = workspace->value_byval;
-	}
-
 	pgstat_report_wait_start(collection_we_assign);
 
-	if (!can_coerce_type(1, &workspace->value_type, &colhdr->value_type, COERCION_IMPLICIT))
-	{
-		pgstat_report_wait_end();
-		ereport(ERROR,
-				(errcode(ERRCODE_DATATYPE_MISMATCH),
-				 errmsg("incompatible value data type"),
-				 errdetail("expecting %s, but received %s",
-						   format_type_extended(colhdr->value_type, -1, 0),
-						   format_type_extended(workspace->value_type, -1, 0))));
-	}
+	oldcxt = collection_add_setup((CollectionHeaderCommon *) colhdr,
+								  workspace->value_type,
+								  sbsrefstate->replacevalue,
+								  sbsrefstate->replacenull,
+								  &item_value, &item_isnull);
 
-	oldcxt = MemoryContextSwitchTo(colhdr->hdr.eoh_context);
+	/* Update workspace to reflect the collection's actual type */
+	workspace->value_type = colhdr->value_type;
+	workspace->value_type_len = colhdr->value_type_len;
+	workspace->value_byval = colhdr->value_byval;
 
 	key = text_to_cstring(DatumGetTextPP(sbsrefstate->upperindex[0]));
 	VALIDATE_KEY_LENGTH_WITH_WAIT_END(key);
 
 	item = (collection *) palloc(sizeof(collection));
 	item->key = key;
-
-
-	/* Check for null assignment */
-	if (sbsrefstate->replacenull)
-		item->isnull = true;
-	else
-	{
-		item->value = datumCopy(sbsrefstate->replacevalue, workspace->value_byval, workspace->value_type_len);
-		item->isnull = false;
-	}
+	item->value = item_value;
+	item->isnull = item_isnull;
 
 	HASH_REPLACE(hh, colhdr->head, key[0], strlen(key), item, replaced_item);
 
-	if (replaced_item)
-	{
-		if (replaced_item->key)
-			pfree(replaced_item->key);
-		if (!replaced_item->isnull && replaced_item->value && !workspace->value_byval)
-			pfree(DatumGetPointer(replaced_item->value));
-		pfree(replaced_item);
-	}
+	collection_replace_cleanup(replaced_item,
+							   replaced_item ? replaced_item->key : NULL,
+							   replaced_item ? replaced_item->isnull : true,
+							   replaced_item ? replaced_item->value : (Datum) 0,
+							   colhdr->value_byval);
 
 	if (colhdr->current == NULL)
 		colhdr->current = colhdr->head;

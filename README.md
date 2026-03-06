@@ -236,7 +236,18 @@ The default type of a collection's element is `text`, however it can contain any
 1. **Type modifier** - Explicitly set when declaring the collection/icollection
 2. **First element** - If no type modifier is defined, the type of the first element added using `add()` defines the collection type
 
-If no type modifier is set, subscript assignments or fetches will be cast to type `text`.
+If no type modifier is set, subscript assignments and fetches default to `text`. This differs from `add()`, which infers the value type from the first element added. To ensure consistent behavior between subscripts and `add()`, always declare a type modifier when storing non-text values:
+
+```sql
+-- Without type modifier: subscript stores as text, add() stores as bigint
+c['k'] := 42::bigint;          -- stored as text
+c := add(c, 'k', 42::bigint);  -- stored as bigint
+
+-- With type modifier: both paths agree
+DECLARE c collection('bigint');
+c['k'] := 42::bigint;          -- stored as bigint
+c := add(c, 'k', 42::bigint);  -- stored as bigint
+```
 
 ### collection Type Modifier
 

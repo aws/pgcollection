@@ -78,10 +78,9 @@ collection_add(PG_FUNCTION_ARGS)
 	collection *item;
 	collection *replaced_item;
 	char	   *key;
-	Datum		value;
+	Datum		item_value;
+	bool		item_isnull;
 	Oid			argtype;
-	int16		argtypelen;
-	bool		argtypebyval;
 
 	if (PG_ARGISNULL(1))
 		ereport(ERROR,
@@ -92,60 +91,28 @@ collection_add(PG_FUNCTION_ARGS)
 
 	pgstat_report_wait_start(collection_we_add);
 
-	oldcxt = MemoryContextSwitchTo(colhdr->hdr.eoh_context);
+	argtype = get_fn_expr_argtype(fcinfo->flinfo, 2);
+
+	oldcxt = collection_add_setup((CollectionHeaderCommon *) colhdr,
+								  argtype, PG_GETARG_DATUM(2),
+								  PG_ARGISNULL(2),
+								  &item_value, &item_isnull);
 
 	key = text_to_cstring(PG_GETARG_TEXT_PP(1));
 	VALIDATE_KEY_LENGTH(key);
 
 	item = (collection *) palloc(sizeof(collection));
 	item->key = key;
-
-	argtype = get_fn_expr_argtype(fcinfo->flinfo, 2);
-	get_typlenbyval(argtype, &argtypelen, &argtypebyval);
-
-	/*
-	 * Set the value type of the collection to the first element added
-	 */
-	if (colhdr->value_type == InvalidOid)
-	{
-		colhdr->value_type = argtype;
-		colhdr->value_type_len = argtypelen;
-		colhdr->value_byval = argtypebyval;
-	}
-	else
-	{
-		if (!can_coerce_type(1, &argtype, &colhdr->value_type, COERCION_IMPLICIT))
-		{
-			pgstat_report_wait_end();
-			ereport(ERROR,
-					(errcode(ERRCODE_DATATYPE_MISMATCH),
-					 errmsg("incompatible value data type"),
-					 errdetail("expecting %s, but received %s",
-							   format_type_extended(colhdr->value_type, -1, 0),
-							   format_type_extended(argtype, -1, 0))));
-		}
-	}
-
-	if (PG_ARGISNULL(2))
-		item->isnull = true;
-	else
-	{
-		value = PG_GETARG_DATUM(2);
-
-		item->value = datumCopy(value, argtypebyval, argtypelen);
-		item->isnull = false;
-	}
+	item->value = item_value;
+	item->isnull = item_isnull;
 
 	HASH_REPLACE(hh, colhdr->head, key[0], strlen(key), item, replaced_item);
 
-	if (replaced_item)
-	{
-		if (replaced_item->key)
-			pfree(replaced_item->key);
-		if (!replaced_item->isnull && replaced_item->value && !argtypebyval)
-			pfree(DatumGetPointer(replaced_item->value));
-		pfree(replaced_item);
-	}
+	collection_replace_cleanup(replaced_item,
+							   replaced_item ? replaced_item->key : NULL,
+							   replaced_item ? replaced_item->isnull : true,
+							   replaced_item ? replaced_item->value : (Datum) 0,
+							   colhdr->value_byval);
 
 	if (colhdr->current == NULL)
 		colhdr->current = colhdr->head;
@@ -175,8 +142,9 @@ Datum
 collection_find(PG_FUNCTION_ARGS)
 {
 	char	   *key;
-	Datum		value;
 	collection *item;
+	Datum		value;
+	bool		resnull;
 	Oid			rettype;
 	CollectionHeader *colhdr;
 
@@ -202,20 +170,16 @@ collection_find(PG_FUNCTION_ARGS)
 
 	item = find_internal(colhdr, key);
 
-	if (item->isnull)
-	{
-		stats.find++;
-		pgstat_report_wait_end();
-		PG_RETURN_NULL();
-	}
-
 	get_call_result_type(fcinfo, &rettype, NULL);
-	value = collection_coerce_value(item->value, colhdr->value_type,
-									colhdr->value_byval,
-									colhdr->value_type_len, rettype);
+	value = collection_fetch_value((CollectionHeaderCommon *) colhdr,
+								   item->value, item->isnull,
+								   rettype, &resnull);
 
 	stats.find++;
 	pgstat_report_wait_end();
+
+	if (resnull)
+		PG_RETURN_NULL();
 
 	PG_RETURN_DATUM(value);
 }

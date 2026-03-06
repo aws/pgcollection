@@ -231,6 +231,9 @@ BEGIN
 END
 $$;
 NOTICE:  Subscript test 17
+ERROR:  incompatible value data type
+DETAIL:  expecting bigint, but received text
+CONTEXT:  PL/pgSQL function inline_code_block line 7 at assignment
 -- Subscript test 18: roundtrip via text cast
 DO $$
 DECLARE

@@ -204,6 +204,9 @@ BEGIN
 END
 $$;
 NOTICE:  Subscript test 14
+ERROR:  incompatible value data type
+DETAIL:  expecting bigint, but received text
+CONTEXT:  PL/pgSQL function inline_code_block line 8 at assignment
 DO
 $$
 DECLARE

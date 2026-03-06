@@ -95,7 +95,6 @@ icollection_subscript_fetch(ExprState *state,
 	ICollectionHeader *icolhdr;
 	icollection *item;
 	int64		key;
-	Datum		value;
 
 	if (*op->resnull)
 		ereport(ERROR,
@@ -125,20 +124,11 @@ icollection_subscript_fetch(ExprState *state,
 				(errcode(ERRCODE_NO_DATA_FOUND),
 				 errmsg("key \"%ld\" not found", key)));
 	}
-	else if (item->isnull)
-		value = (Datum) 0;
-	else
-		value = collection_coerce_value(item->value, icolhdr->value_type,
-										icolhdr->value_byval,
-										icolhdr->value_type_len,
-										workspace->value_type);
 
-	if (value == (Datum) 0)
-		*op->resnull = true;
-	else
-		*op->resnull = false;
-
-	*op->resvalue = value;
+	*op->resvalue = collection_fetch_value((CollectionHeaderCommon *) icolhdr,
+										   item->value, item->isnull,
+										   workspace->value_type,
+										   op->resnull);
 
 	stats.find++;
 	pgstat_report_wait_end();
@@ -159,6 +149,8 @@ icollection_subscript_assign(ExprState *state,
 	icollection *item;
 	icollection *replaced_item;
 	int64		key;
+	Datum		item_value;
+	bool		item_isnull;
 
 	if (sbsrefstate->upperindexnull[0])
 		ereport(ERROR,
@@ -175,56 +167,32 @@ icollection_subscript_assign(ExprState *state,
 		icolhdr = (ICollectionHeader *) DatumGetExpandedICollection(*op->resvalue);
 	}
 
-	if (icolhdr->value_type == InvalidOid)
-	{
-		icolhdr->value_type = workspace->value_type;
-		icolhdr->value_type_len = workspace->value_type_len;
-		icolhdr->value_byval = workspace->value_byval;
-	}
-	else if (workspace->value_type != icolhdr->value_type)
-	{
-		workspace->value_type = icolhdr->value_type;
-		get_typlenbyval(icolhdr->value_type, &workspace->value_type_len, &workspace->value_byval);
-		icolhdr->value_type_len = workspace->value_type_len;
-		icolhdr->value_byval = workspace->value_byval;
-	}
-
 	pgstat_report_wait_start(collection_we_assign);
 
-	if (!can_coerce_type(1, &workspace->value_type, &icolhdr->value_type, COERCION_IMPLICIT))
-	{
-		pgstat_report_wait_end();
-		ereport(ERROR,
-				(errcode(ERRCODE_DATATYPE_MISMATCH),
-				 errmsg("incompatible value data type"),
-				 errdetail("expecting %s, but received %s",
-						   format_type_extended(icolhdr->value_type, -1, 0),
-						   format_type_extended(workspace->value_type, -1, 0))));
-	}
+	oldcxt = collection_add_setup((CollectionHeaderCommon *) icolhdr,
+								  workspace->value_type,
+								  sbsrefstate->replacevalue,
+								  sbsrefstate->replacenull,
+								  &item_value, &item_isnull);
 
-	oldcxt = MemoryContextSwitchTo(icolhdr->hdr.eoh_context);
+	/* Update workspace to reflect the collection's actual type */
+	workspace->value_type = icolhdr->value_type;
+	workspace->value_type_len = icolhdr->value_type_len;
+	workspace->value_byval = icolhdr->value_byval;
 
 	key = DatumGetInt64(sbsrefstate->upperindex[0]);
 
 	item = (icollection *) palloc(sizeof(icollection));
 	item->key = key;
-
-	if (sbsrefstate->replacenull)
-		item->isnull = true;
-	else
-	{
-		item->value = datumCopy(sbsrefstate->replacevalue, workspace->value_byval, workspace->value_type_len);
-		item->isnull = false;
-	}
+	item->value = item_value;
+	item->isnull = item_isnull;
 
 	ICOLLECTION_HASH_REPLACE(icolhdr->head, key, item, replaced_item);
 
-	if (replaced_item)
-	{
-		if (!replaced_item->isnull && replaced_item->value && !workspace->value_byval)
-			pfree(DatumGetPointer(replaced_item->value));
-		pfree(replaced_item);
-	}
+	collection_replace_cleanup(replaced_item, NULL,
+							   replaced_item ? replaced_item->isnull : true,
+							   replaced_item ? replaced_item->value : (Datum) 0,
+							   icolhdr->value_byval);
 
 	if (icolhdr->current == NULL)
 		icolhdr->current = icolhdr->head;

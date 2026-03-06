@@ -292,6 +292,39 @@ extern Datum collection_coerce_value(Datum value, Oid value_type,
 									 Oid rettype);
 
 /*
+ * Shared fetch logic: coerce value from a found entry, handling isnull.
+ * Sets *resnull and returns the coerced Datum.  entry_value/entry_isnull
+ * come from the hash entry.  target_type is the desired output type.
+ */
+extern Datum collection_fetch_value(CollectionHeaderCommon * hdr,
+									Datum entry_value, bool entry_isnull,
+									Oid target_type,
+									bool *resnull);
+
+/*
+ * Shared add/assign logic: validate type compatibility, switch to the
+ * expanded object's memory context, copy the value, and return the new
+ * item's value+isnull.  On return, caller must do the HASH_REPLACE and
+ * free the old entry.  Returns the previous MemoryContext.
+ *
+ * If the collection has no value_type yet, it is set from argtype.
+ * If argtype conflicts, an ERROR is raised.
+ */
+extern MemoryContext collection_add_setup(CollectionHeaderCommon * hdr,
+										  Oid argtype, Datum value,
+										  bool argisnull,
+										  Datum *out_value, bool *out_isnull);
+
+/*
+ * Shared post-replace cleanup: free old entry's value (if pass-by-ref and
+ * not null).  key_ptr is the old entry's key pointer (NULL for int-keyed
+ * collections).  old_entry is the replaced entry to pfree.
+ */
+extern void collection_replace_cleanup(void *old_entry, void *key_ptr,
+									   bool entry_isnull, Datum entry_value,
+									   bool value_byval);
+
+/*
  * Shared subscript workspace used by both collection and icollection.
  * The struct layout is identical for both types.
  */

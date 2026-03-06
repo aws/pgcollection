@@ -67,10 +67,9 @@ icollection_add(PG_FUNCTION_ARGS)
 	icollection *item;
 	icollection *replaced_item;
 	int64		key;
-	Datum		value;
+	Datum		item_value;
+	bool		item_isnull;
 	Oid			argtype;
-	int16		argtypelen;
-	bool		argtypebyval;
 
 	if (PG_ARGISNULL(1))
 		ereport(ERROR,
@@ -81,53 +80,26 @@ icollection_add(PG_FUNCTION_ARGS)
 
 	pgstat_report_wait_start(collection_we_add);
 
-	oldcxt = MemoryContextSwitchTo(hdr->hdr.eoh_context);
+	argtype = get_fn_expr_argtype(fcinfo->flinfo, 2);
+
+	oldcxt = collection_add_setup((CollectionHeaderCommon *) hdr,
+								  argtype, PG_GETARG_DATUM(2),
+								  PG_ARGISNULL(2),
+								  &item_value, &item_isnull);
 
 	key = PG_GETARG_INT64(1);
 
 	item = (icollection *) palloc(sizeof(icollection));
 	item->key = key;
-
-	argtype = get_fn_expr_argtype(fcinfo->flinfo, 2);
-	get_typlenbyval(argtype, &argtypelen, &argtypebyval);
-
-	if (hdr->value_type == InvalidOid)
-	{
-		hdr->value_type = argtype;
-		hdr->value_type_len = argtypelen;
-		hdr->value_byval = argtypebyval;
-	}
-	else
-	{
-		if (!can_coerce_type(1, &argtype, &hdr->value_type, COERCION_IMPLICIT))
-		{
-			pgstat_report_wait_end();
-			ereport(ERROR,
-					(errcode(ERRCODE_DATATYPE_MISMATCH),
-					 errmsg("incompatible value data type"),
-					 errdetail("expecting %s, but received %s",
-							   format_type_extended(hdr->value_type, -1, 0),
-							   format_type_extended(argtype, -1, 0))));
-		}
-	}
-
-	if (PG_ARGISNULL(2))
-		item->isnull = true;
-	else
-	{
-		value = PG_GETARG_DATUM(2);
-		item->value = datumCopy(value, argtypebyval, argtypelen);
-		item->isnull = false;
-	}
+	item->value = item_value;
+	item->isnull = item_isnull;
 
 	ICOLLECTION_HASH_REPLACE(hdr->head, key, item, replaced_item);
 
-	if (replaced_item)
-	{
-		if (!replaced_item->isnull && replaced_item->value && !argtypebyval)
-			pfree(DatumGetPointer(replaced_item->value));
-		pfree(replaced_item);
-	}
+	collection_replace_cleanup(replaced_item, NULL,
+							   replaced_item ? replaced_item->isnull : true,
+							   replaced_item ? replaced_item->value : (Datum) 0,
+							   hdr->value_byval);
 
 	if (hdr->current == NULL)
 		hdr->current = hdr->head;
@@ -151,6 +123,7 @@ icollection_find(PG_FUNCTION_ARGS)
 	int64		key;
 	icollection *item;
 	Datum		value;
+	bool		resnull;
 	Oid			rettype;
 
 	if (PG_ARGISNULL(1))
@@ -185,20 +158,16 @@ icollection_find(PG_FUNCTION_ARGS)
 				 errmsg("key \"%lld\" not found", (long long) key)));
 	}
 
-	if (item->isnull)
-	{
-		stats.find++;
-		pgstat_report_wait_end();
-		PG_RETURN_NULL();
-	}
-
 	get_call_result_type(fcinfo, &rettype, NULL);
-	value = collection_coerce_value(item->value, hdr->value_type,
-									hdr->value_byval,
-									hdr->value_type_len, rettype);
+	value = collection_fetch_value((CollectionHeaderCommon *) hdr,
+								   item->value, item->isnull,
+								   rettype, &resnull);
 
 	stats.find++;
 	pgstat_report_wait_end();
+
+	if (resnull)
+		PG_RETURN_NULL();
 
 	PG_RETURN_DATUM(value);
 }

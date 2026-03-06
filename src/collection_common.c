@@ -29,6 +29,7 @@
 #include "utils/datum.h"
 #include "utils/expandeddatum.h"
 #include "utils/lsyscache.h"
+#include "utils/wait_event.h"
 
 #include "collection.h"
 
@@ -566,4 +567,100 @@ collection_coerce_value(Datum value, Oid value_type,
 			(errcode(ERRCODE_DATATYPE_MISMATCH),
 			 errmsg("Value type does not match the return type")));
 	return (Datum) 0;			/* unreachable */
+}
+
+/*
+ * collection_fetch_value
+ *		Shared logic for returning a value from a found hash entry.
+ *		Used by both find() userfuncs and subscript fetch callbacks.
+ */
+Datum
+collection_fetch_value(CollectionHeaderCommon * hdr,
+					   Datum entry_value, bool entry_isnull,
+					   Oid target_type,
+					   bool *resnull)
+{
+	if (entry_isnull)
+	{
+		*resnull = true;
+		return (Datum) 0;
+	}
+
+	*resnull = false;
+	return collection_coerce_value(entry_value, hdr->value_type,
+								   hdr->value_byval, hdr->value_type_len,
+								   target_type);
+}
+
+/*
+ * collection_add_setup
+ *		Shared pre-insert logic for add() userfuncs and subscript assign.
+ *		Validates type compatibility, switches to the expanded object's
+ *		memory context, and prepares the value to store.
+ *
+ *		Returns the previous MemoryContext (caller must restore it).
+ */
+MemoryContext
+collection_add_setup(CollectionHeaderCommon * hdr,
+					 Oid argtype, Datum value, bool argisnull,
+					 Datum *out_value, bool *out_isnull)
+{
+	MemoryContext oldcxt;
+	int16		argtypelen;
+	bool		argtypebyval;
+
+	get_typlenbyval(argtype, &argtypelen, &argtypebyval);
+
+	if (hdr->value_type == InvalidOid)
+	{
+		hdr->value_type = argtype;
+		hdr->value_type_len = argtypelen;
+		hdr->value_byval = argtypebyval;
+	}
+	else if (!can_coerce_type(1, &argtype, &hdr->value_type, COERCION_IMPLICIT))
+	{
+		pgstat_report_wait_end();
+		ereport(ERROR,
+				(errcode(ERRCODE_DATATYPE_MISMATCH),
+				 errmsg("incompatible value data type"),
+				 errdetail("expecting %s, but received %s",
+						   format_type_extended(hdr->value_type, -1, 0),
+						   format_type_extended(argtype, -1, 0))));
+	}
+
+	oldcxt = MemoryContextSwitchTo(hdr->hdr.eoh_context);
+
+	if (argisnull)
+	{
+		*out_isnull = true;
+		*out_value = (Datum) 0;
+	}
+	else
+	{
+		*out_isnull = false;
+		*out_value = datumCopy(value, argtypebyval, argtypelen);
+	}
+
+	return oldcxt;
+}
+
+/*
+ * collection_replace_cleanup
+ *		Free a replaced hash entry and its key/value.
+ *		key_ptr should be the old entry's key pointer for text-keyed
+ *		collections, or NULL for integer-keyed collections.
+ */
+void
+collection_replace_cleanup(void *old_entry, void *key_ptr,
+						   bool entry_isnull, Datum entry_value,
+						   bool value_byval)
+{
+	if (old_entry == NULL)
+		return;
+
+	if (key_ptr)
+		pfree(key_ptr);
+	if (!entry_isnull && entry_value && !value_byval)
+		pfree(DatumGetPointer(entry_value));
+	pfree(old_entry);
 }
