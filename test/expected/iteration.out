@@ -559,3 +559,37 @@ NOTICE:  Iteration advancement - first: aaa
 NOTICE:  Iteration advancement - next: bbb
 NOTICE:  Iteration advancement - next again: ccc
 NOTICE:  Iteration advancement - next (null): NULL
+-- next_key/prev_key boundary tests
+DO $$
+DECLARE
+  c collection;
+  v text;
+  ok boolean;
+BEGIN
+  c := add(c, 'a', '1');
+  c := add(c, 'b', '2');
+  c := add(c, 'c', '3');
+
+  -- next_key on last key returns NULL
+  ASSERT next_key(c, 'c') IS NULL, 'next_key on last should be null';
+
+  -- prev_key on first key returns NULL
+  ASSERT prev_key(c, 'a') IS NULL, 'prev_key on first should be null';
+
+  -- next_key/prev_key on nonexistent key errors
+  ok := false;
+  BEGIN
+    v := next_key(c, 'zzz');
+  EXCEPTION WHEN no_data_found THEN
+    ok := true;
+  END;
+  ASSERT ok, 'next_key on missing key should error';
+
+  ok := false;
+  BEGIN
+    v := prev_key(c, 'zzz');
+  EXCEPTION WHEN no_data_found THEN
+    ok := true;
+  END;
+  ASSERT ok, 'prev_key on missing key should error';
+END $$;

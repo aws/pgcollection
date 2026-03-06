@@ -35,3 +35,17 @@ INSERT INTO select_collection VALUES('{"value_type":"pg_catalog.char","entries":
 SELECT * FROM select_collection;
 
 DROP TABLE select_collection;
+
+-- Typed collection persistence
+CREATE TABLE select_typed(id serial, c collection);
+
+INSERT INTO select_typed(c)
+  SELECT add(add(null::collection, 'a', 42::bigint), 'b', 99::bigint);
+INSERT INTO select_typed(c)
+  SELECT add(add(null::collection, 'x', '2026-01-01'::date), 'y', '2026-06-15'::date);
+INSERT INTO select_typed(c)
+  SELECT add(add(null::collection, 'p', 'hello'), 'q', null::text);
+
+SELECT id, c FROM select_typed ORDER BY id;
+
+DROP TABLE select_typed;

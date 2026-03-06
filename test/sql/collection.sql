@@ -565,3 +565,157 @@ BEGIN
   val1 := add(val1, 'A', 2::int4);
 END;
 $$;
+
+-- ============================================================
+-- Flatten/unflatten roundtrip with typed collections
+-- ============================================================
+CREATE TABLE collection_persist_test(id serial, c collection);
+
+-- bigint values
+INSERT INTO collection_persist_test(c)
+  SELECT add(add(null::collection, 'a', 100::bigint), 'b', 200::bigint);
+
+-- date values
+INSERT INTO collection_persist_test(c)
+  SELECT add(add(null::collection, 'x', '2026-01-01'::date), 'y', '2026-12-31'::date);
+
+-- collection with NULL values
+INSERT INTO collection_persist_test(c)
+  SELECT add(add(null::collection, 'present', 'hello'), 'missing', null::text);
+
+SELECT id, c FROM collection_persist_test ORDER BY id;
+SELECT id, count(c), value_type(c) FROM collection_persist_test ORDER BY id;
+
+-- verify values survive roundtrip
+DO $$
+DECLARE
+  r record;
+BEGIN
+  SELECT c INTO r FROM collection_persist_test WHERE id = 1;
+  ASSERT find(r.c, 'a', 0::bigint) = 100, 'bigint roundtrip failed';
+  ASSERT find(r.c, 'b', 0::bigint) = 200, 'bigint roundtrip b failed';
+
+  SELECT c INTO r FROM collection_persist_test WHERE id = 2;
+  ASSERT find(r.c, 'x', '2000-01-01'::date) = '2026-01-01'::date, 'date roundtrip failed';
+
+  SELECT c INTO r FROM collection_persist_test WHERE id = 3;
+  ASSERT find(r.c, 'present') = 'hello', 'text roundtrip failed';
+  ASSERT find(r.c, 'missing') IS NULL, 'null roundtrip failed';
+END $$;
+
+-- composite type values
+CREATE TABLE collection_comp_type(col1 text, col2 int);
+INSERT INTO collection_comp_type VALUES ('hello', 42), ('world', 99);
+
+INSERT INTO collection_persist_test(c)
+  SELECT add(add(null::collection, 'r1', r), 'r2', r)
+    FROM (SELECT row('hello', 42)::collection_comp_type AS r) sub;
+
+SELECT id, c FROM collection_persist_test WHERE id = 4;
+
+DO $$
+DECLARE
+  r record;
+  v collection_comp_type;
+BEGIN
+  SELECT c INTO r FROM collection_persist_test WHERE id = 4;
+  v := find(r.c, 'r1', null::collection_comp_type);
+  ASSERT v.col1 = 'hello' AND v.col2 = 42,
+    format('composite roundtrip failed: %s', v);
+END $$;
+
+DROP TABLE collection_comp_type;
+DROP TABLE collection_persist_test;
+
+-- ============================================================
+-- Delete all then reuse
+-- ============================================================
+DO $$
+DECLARE
+  c collection;
+BEGIN
+  c := add(c, 'a', 'one');
+  c := add(c, 'b', 'two');
+  c := delete(c, 'a');
+  c := delete(c, 'b');
+  ASSERT count(c) = 0, 'count after delete-all should be 0';
+  ASSERT isnull(c), 'iterator should be null after delete-all';
+
+  -- reuse
+  c := add(c, 'x', 'new');
+  ASSERT count(c) = 1, 'count after re-add should be 1';
+  ASSERT find(c, 'x') = 'new', 'find after re-add failed';
+END $$;
+
+-- ============================================================
+-- Key length validation
+-- ============================================================
+DO $$
+DECLARE
+  c collection;
+  long_key text;
+BEGIN
+  long_key := repeat('x', 32768);
+  c := add(c, long_key, 'val');
+EXCEPTION WHEN program_limit_exceeded THEN
+  RAISE NOTICE 'key length error caught';
+END $$;
+
+-- ============================================================
+-- Empty collection operations
+-- ============================================================
+DO $$
+DECLARE
+  c collection;
+  v text;
+  ok boolean;
+BEGIN
+  c := add(c, 'a', 'val');
+  c := delete(c, 'a');
+  -- now c is empty but not null
+
+  ASSERT count(c) = 0, 'empty count';
+  ASSERT key(c) IS NULL, 'empty key';
+  ASSERT value(c) IS NULL, 'empty value';
+  ASSERT isnull(c), 'empty isnull';
+  ASSERT first_key(c) IS NULL, 'empty first_key';
+  ASSERT last_key(c) IS NULL, 'empty last_key';
+  ASSERT value_type(c) IS NULL, 'empty value_type';
+
+  -- sort on empty should not error
+  c := sort(c);
+  ASSERT count(c) = 0, 'empty sort count';
+
+  -- copy of empty returns null
+  ASSERT copy(c) IS NULL, 'empty copy';
+
+  -- find on empty should error
+  ok := false;
+  BEGIN
+    v := find(c, 'nope');
+  EXCEPTION WHEN no_data_found THEN
+    ok := true;
+  END;
+  ASSERT ok, 'find on empty should error';
+END $$;
+
+-- ============================================================
+-- NULL arg edge cases
+-- ============================================================
+SELECT find(null::collection, 'k');
+SELECT exist(null::collection, 'k');
+SELECT count(null::collection);
+
+-- ============================================================
+-- Cast error path
+-- ============================================================
+DO $$
+DECLARE
+  c collection;
+  t collection('bigint');
+BEGIN
+  c := add(c, 'a', 'hello');
+  t := c;
+EXCEPTION WHEN datatype_mismatch THEN
+  RAISE NOTICE 'cast error caught';
+END $$;

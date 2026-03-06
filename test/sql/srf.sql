@@ -164,3 +164,42 @@ BEGIN
   END LOOP;
 END
 $$;
+
+-- SRF on empty collection
+DO $$
+DECLARE
+  c collection;
+  cnt int := 0;
+  r record;
+BEGIN
+  RAISE NOTICE 'SRF test 9 - empty collection';
+  c := add(c, 'a', 'val');
+  c := delete(c, 'a');
+
+  FOR r IN SELECT k FROM keys_to_table(c) k LOOP cnt := cnt + 1; END LOOP;
+  ASSERT cnt = 0, 'keys_to_table on empty should return 0 rows';
+
+  FOR r IN SELECT v FROM values_to_table(c) v LOOP cnt := cnt + 1; END LOOP;
+  ASSERT cnt = 0, 'values_to_table on empty should return 0 rows';
+
+  FOR r IN SELECT * FROM to_table(c) LOOP cnt := cnt + 1; END LOOP;
+  ASSERT cnt = 0, 'to_table on empty should return 0 rows';
+END $$;
+
+-- SRF with NULL values
+DO $$
+DECLARE
+  c collection;
+  r record;
+BEGIN
+  RAISE NOTICE 'SRF test 10 - NULL values';
+  c := add(c, 'a', 'real');
+  c := add(c, 'b', null::text);
+  c := add(c, 'c', 'also real');
+
+  RAISE NOTICE '----------------';
+  FOR r IN SELECT v FROM values_to_table(c) v
+  LOOP
+    RAISE NOTICE 'value: [%]', r.v;
+  END LOOP;
+END $$;

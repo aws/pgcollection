@@ -344,3 +344,21 @@ BEGIN
   RAISE NOTICE 'Values: %, %, %', ic[1], ic[2], ic[3];
 END;
 $$;
+
+-- Subscript test: invalid typmod
+DO $$
+DECLARE
+  ic icollection('nonexistent_type');
+BEGIN
+  ic[1] := 'val';
+END $$;
+
+-- Subscript test: multiple subscripts not allowed
+DO $$
+DECLARE
+  ic icollection;
+  v text;
+BEGIN
+  ic[1] := 'val';
+  v := ic[1][2];
+END $$;

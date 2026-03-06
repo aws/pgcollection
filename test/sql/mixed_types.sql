@@ -157,3 +157,53 @@ BEGIN
     RAISE NOTICE 'collection value_type: %', value_type(c);
     RAISE NOTICE 'icollection value_type: %', value_type(ic);
 END $$;
+
+-- Text-fallback coercion: store date, retrieve as text
+DO $$
+DECLARE
+  c  collection('date');
+  ic icollection('date');
+  vt text;
+BEGIN
+  c := add(c, 'k', '2026-03-06'::date);
+  vt := find(c, 'k');
+  RAISE NOTICE 'collection date->text: %', vt;
+
+  ic := add(ic, 1, '2026-03-06'::date);
+  vt := find(ic, 1);
+  RAISE NOTICE 'icollection date->text: %', vt;
+END $$;
+
+-- Text-fallback coercion via subscript
+DO $$
+DECLARE
+  c  collection('date');
+  vt text;
+BEGIN
+  c['k'] := '2026-03-06'::date;
+  vt := c['k'];
+  RAISE NOTICE 'subscript date->text: %', vt;
+END $$;
+
+-- copy() with NULL values
+DO $$
+DECLARE
+  c  collection;
+  c2 collection;
+  ic  icollection;
+  ic2 icollection;
+BEGIN
+  c := add(c, 'a', 'real');
+  c := add(c, 'b', null::text);
+  c := add(c, 'c', 'also real');
+  c2 := copy(c);
+  ASSERT c::text = c2::text,
+    format('copy with nulls failed: orig=%s copy=%s', c, c2);
+
+  ic := add(ic, 1, 'real');
+  ic := add(ic, 2, null::text);
+  ic := add(ic, 3, 'also real');
+  ic2 := copy(ic);
+  ASSERT ic::text = ic2::text,
+    format('ic copy with nulls failed: orig=%s copy=%s', ic, ic2);
+END $$;

@@ -284,13 +284,16 @@ collection_get_flat_size(ExpandedObjectHeader *eohptr)
 	{
 		sz += strlen(cur->key);
 
-		if (colhdr->value_type_len != -1)
-			sz += colhdr->value_type_len;
-		else
+		if (!cur->isnull)
 		{
-			struct varlena *s = (struct varlena *) DatumGetPointer(cur->value);
+			if (colhdr->value_type_len != -1)
+				sz += colhdr->value_type_len;
+			else
+			{
+				struct varlena *s = (struct varlena *) DatumGetPointer(cur->value);
 
-			sz += (Size) VARSIZE_ANY(s);
+				sz += (Size) VARSIZE_ANY(s);
+			}
 		}
 		sz += sizeof(int16);
 		sz += sizeof(size_t);

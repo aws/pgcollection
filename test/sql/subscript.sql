@@ -413,3 +413,21 @@ BEGIN
   RAISE NOTICE 'Values: %, %, %', i['a'], i['b'], i['c'];
 END;
 $$;
+
+-- Subscript test: invalid typmod
+DO $$
+DECLARE
+  c collection('nonexistent_type');
+BEGIN
+  c['a'] := 'val';
+END $$;
+
+-- Subscript test: multiple subscripts not allowed
+DO $$
+DECLARE
+  c collection;
+  v text;
+BEGIN
+  c['a'] := 'val';
+  v := c['a']['b'];
+END $$;

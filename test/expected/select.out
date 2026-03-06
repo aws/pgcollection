@@ -139,3 +139,20 @@ SELECT * FROM select_collection;
 (9 rows)
 
 DROP TABLE select_collection;
+-- Typed collection persistence
+CREATE TABLE select_typed(id serial, c collection);
+INSERT INTO select_typed(c)
+  SELECT add(add(null::collection, 'a', 42::bigint), 'b', 99::bigint);
+INSERT INTO select_typed(c)
+  SELECT add(add(null::collection, 'x', '2026-01-01'::date), 'y', '2026-06-15'::date);
+INSERT INTO select_typed(c)
+  SELECT add(add(null::collection, 'p', 'hello'), 'q', null::text);
+SELECT id, c FROM select_typed ORDER BY id;
+ id |                                          c                                           
+----+--------------------------------------------------------------------------------------
+  1 | {"value_type": "bigint", "entries": {"a": "42", "b": "99"}}
+  2 | {"value_type": "pg_catalog.date", "entries": {"x": "01-01-2026", "y": "06-15-2026"}}
+  3 | {"value_type": "pg_catalog.text", "entries": {"p": "hello", "q": null}}
+(3 rows)
+
+DROP TABLE select_typed;

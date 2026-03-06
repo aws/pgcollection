@@ -26,3 +26,17 @@ SELECT values_to_table(col_icollection) FROM select_icollection;
 SELECT COUNT(col_icollection) FROM select_icollection;
 
 DROP TABLE select_icollection;
+
+-- Typed icollection persistence
+CREATE TABLE select_ic_typed(id serial, ic icollection);
+
+INSERT INTO select_ic_typed(ic)
+  SELECT add(add(null::icollection, 1, 42::bigint), 2, 99::bigint);
+INSERT INTO select_ic_typed(ic)
+  SELECT add(add(null::icollection, 10, '2026-01-01'::date), 20, '2026-06-15'::date);
+INSERT INTO select_ic_typed(ic)
+  SELECT add(add(null::icollection, 1, 'hello'), 2, null::text);
+
+SELECT id, ic FROM select_ic_typed ORDER BY id;
+
+DROP TABLE select_ic_typed;

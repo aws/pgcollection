@@ -484,3 +484,34 @@ BEGIN
   RAISE NOTICE 'Size of icollection is %', length(ic::text);
 END;
 $$;
+
+-- next_key/prev_key boundary tests
+DO $$
+DECLARE
+  ic icollection;
+  v bigint;
+  ok boolean;
+BEGIN
+  ic := add(ic, 1, 'a');
+  ic := add(ic, 2, 'b');
+  ic := add(ic, 3, 'c');
+
+  ASSERT next_key(ic, 3) IS NULL, 'ic next_key on last should be null';
+  ASSERT prev_key(ic, 1) IS NULL, 'ic prev_key on first should be null';
+
+  ok := false;
+  BEGIN
+    v := next_key(ic, 999);
+  EXCEPTION WHEN no_data_found THEN
+    ok := true;
+  END;
+  ASSERT ok, 'ic next_key on missing key should error';
+
+  ok := false;
+  BEGIN
+    v := prev_key(ic, 999);
+  EXCEPTION WHEN no_data_found THEN
+    ok := true;
+  END;
+  ASSERT ok, 'ic prev_key on missing key should error';
+END $$;

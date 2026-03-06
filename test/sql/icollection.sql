@@ -545,3 +545,109 @@ BEGIN
     arr_instance := add(arr_instance, 1, add(find(arr_instance, 1, NULL::icollection), 20, 1::int));
   END LOOP;
 END $$;
+
+-- ============================================================
+-- Flatten/unflatten roundtrip with typed icollections
+-- ============================================================
+CREATE TABLE icollection_persist_test(id serial, ic icollection);
+
+-- bigint values
+INSERT INTO icollection_persist_test(ic)
+  SELECT add(add(null::icollection, 1, 100::bigint), 2, 200::bigint);
+
+-- date values
+INSERT INTO icollection_persist_test(ic)
+  SELECT add(add(null::icollection, 10, '2026-01-01'::date), 20, '2026-12-31'::date);
+
+-- icollection with NULL values
+INSERT INTO icollection_persist_test(ic)
+  SELECT add(add(null::icollection, 1, 'hello'), 2, null::text);
+
+SELECT id, ic FROM icollection_persist_test ORDER BY id;
+SELECT id, count(ic), value_type(ic) FROM icollection_persist_test ORDER BY id;
+
+-- verify values survive roundtrip
+DO $$
+DECLARE
+  r record;
+BEGIN
+  SELECT ic INTO r FROM icollection_persist_test WHERE id = 1;
+  ASSERT find(r.ic, 1, 0::bigint) = 100, 'ic bigint roundtrip failed';
+  ASSERT find(r.ic, 2, 0::bigint) = 200, 'ic bigint roundtrip 2 failed';
+
+  SELECT ic INTO r FROM icollection_persist_test WHERE id = 2;
+  ASSERT find(r.ic, 10, '2000-01-01'::date) = '2026-01-01'::date, 'ic date roundtrip failed';
+
+  SELECT ic INTO r FROM icollection_persist_test WHERE id = 3;
+  ASSERT find(r.ic, 1) = 'hello', 'ic text roundtrip failed';
+  ASSERT find(r.ic, 2) IS NULL, 'ic null roundtrip failed';
+END $$;
+
+DROP TABLE icollection_persist_test;
+
+-- ============================================================
+-- Delete all then reuse
+-- ============================================================
+DO $$
+DECLARE
+  ic icollection;
+BEGIN
+  ic := add(ic, 1, 'one');
+  ic := add(ic, 2, 'two');
+  ic := delete(ic, 1);
+  ic := delete(ic, 2);
+  ASSERT count(ic) = 0, 'ic count after delete-all should be 0';
+  ASSERT isnull(ic), 'ic iterator should be null after delete-all';
+
+  ic := add(ic, 99, 'new');
+  ASSERT count(ic) = 1, 'ic count after re-add should be 1';
+  ASSERT find(ic, 99) = 'new', 'ic find after re-add failed';
+END $$;
+
+-- ============================================================
+-- Empty icollection operations
+-- ============================================================
+DO $$
+DECLARE
+  ic icollection;
+  v text;
+  ok boolean;
+BEGIN
+  ic := add(ic, 1, 'val');
+  ic := delete(ic, 1);
+
+  ASSERT count(ic) = 0, 'ic empty count';
+  ASSERT key(ic) IS NULL, 'ic empty key';
+  ASSERT value(ic) IS NULL, 'ic empty value';
+  ASSERT isnull(ic), 'ic empty isnull';
+  ASSERT first_key(ic) IS NULL, 'ic empty first_key';
+  ASSERT last_key(ic) IS NULL, 'ic empty last_key';
+  ASSERT value_type(ic) IS NULL, 'ic empty value_type';
+
+  ic := sort(ic);
+  ASSERT count(ic) = 0, 'ic empty sort count';
+
+  ASSERT copy(ic) IS NULL, 'ic empty copy';
+
+  ok := false;
+  BEGIN
+    v := find(ic, 1);
+  EXCEPTION WHEN no_data_found THEN
+    ok := true;
+  END;
+  ASSERT ok, 'ic find on empty should error';
+END $$;
+
+-- ============================================================
+-- Cast error path
+-- ============================================================
+DO $$
+DECLARE
+  ic icollection;
+  t  icollection('bigint');
+BEGIN
+  ic := add(ic, 1, 'hello');
+  t := ic;
+EXCEPTION WHEN datatype_mismatch THEN
+  RAISE NOTICE 'ic cast error caught';
+END $$;

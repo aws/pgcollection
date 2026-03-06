@@ -467,3 +467,25 @@ END;
 $$;
 NOTICE:  Subscript test 31 - Type property consistency
 NOTICE:  Values: 42, -2147483647, 2147483647
+-- Subscript test: invalid typmod
+DO $$
+DECLARE
+  c collection('nonexistent_type');
+BEGIN
+  c['a'] := 'val';
+END $$;
+ERROR:  type "nonexistent_type" does not exist
+LINE 3:   c collection('nonexistent_type');
+            ^
+-- Subscript test: multiple subscripts not allowed
+DO $$
+DECLARE
+  c collection;
+  v text;
+BEGIN
+  c['a'] := 'val';
+  v := c['a']['b'];
+END $$;
+ERROR:  collection allows only one subscript
+CONTEXT:  PL/pgSQL assignment "v := c['a']['b']"
+PL/pgSQL function inline_code_block line 7 at assignment

@@ -385,3 +385,25 @@ END;
 $$;
 NOTICE:  Subscript test 28 - Type property consistency
 NOTICE:  Values: 42, -2147483647, 2147483647
+-- Subscript test: invalid typmod
+DO $$
+DECLARE
+  ic icollection('nonexistent_type');
+BEGIN
+  ic[1] := 'val';
+END $$;
+ERROR:  type "nonexistent_type" does not exist
+LINE 3:   ic icollection('nonexistent_type');
+             ^
+-- Subscript test: multiple subscripts not allowed
+DO $$
+DECLARE
+  ic icollection;
+  v text;
+BEGIN
+  ic[1] := 'val';
+  v := ic[1][2];
+END $$;
+ERROR:  icollection allows only one subscript
+CONTEXT:  PL/pgSQL assignment "v := ic[1][2]"
+PL/pgSQL function inline_code_block line 7 at assignment

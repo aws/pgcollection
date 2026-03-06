@@ -345,7 +345,7 @@ collection_copy(PG_FUNCTION_ARGS)
 			if (!iter->isnull)
 				item->value = datumCopy(iter->value, colhdr->value_byval, colhdr->value_type_len);
 
-			HASH_REPLACE(hh, copyhdr->head, key, strlen(key), item, replaced_item);
+			HASH_REPLACE(hh, copyhdr->head, key[0], strlen(key), item, replaced_item);
 			if (replaced_item)
 			{
 				pfree(replaced_item->key);
