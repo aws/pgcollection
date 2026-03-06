@@ -16,6 +16,7 @@
 #include "postgres.h"
 
 #include "catalog/pg_type.h"
+#include "parser/parse_coerce.h"
 #include "parser/parse_type.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
@@ -30,8 +31,7 @@ PG_FUNCTION_INFO_V1(icollection_typmodin);
 PG_FUNCTION_INFO_V1(icollection_typmodout);
 PG_FUNCTION_INFO_V1(icollection_cast);
 
-uint32		icollection_we_fetch;
-uint32		icollection_we_assign;
+
 
 /*
  * icollection_in
@@ -99,74 +99,27 @@ Datum
 icollection_typmodin(PG_FUNCTION_ARGS)
 {
 	ArrayType  *ta = PG_GETARG_ARRAYTYPE_P(0);
-	Datum	   *elem_values;
-	int			n;
-	Oid			typoid = 0;
-	int32		typmod = 0;
 
-	if (ARR_ELEMTYPE(ta) != CSTRINGOID)
-		ereport(ERROR,
-				(errcode(ERRCODE_ARRAY_ELEMENT_ERROR),
-				 errmsg("typmod array must be type cstring[]")));
-
-	if (ARR_NDIM(ta) != 1)
-		ereport(ERROR,
-				(errcode(ERRCODE_ARRAY_SUBSCRIPT_ERROR),
-				 errmsg("typmod array must be one-dimensional")));
-
-	if (array_contains_nulls(ta))
-		ereport(ERROR,
-				(errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
-				 errmsg("typmod array must not contain nulls")));
-
-	deconstruct_array(ta, CSTRINGOID, -2, false, 'c', &elem_values, NULL, &n);
-
-	if (n != 1)
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("invalid ICOLLECTION type modifier")));
-
-	parseTypeString(DatumGetCString(elem_values[0]), &typoid, &typmod, NULL);
-
-	if (typmod != -1)
-	{
-		if (typoid != BPCHAROID ||
-			(typmod != VARHDRSZ + 1 ||
-			 strpbrk(DatumGetCString(elem_values[0]), "()")))
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					 errmsg("invalid ICOLLECTION type modifier"),
-					 errdetail("the type cannot have a type modifier")));
-	}
-
-	PG_RETURN_INT32(typoid);
+	PG_RETURN_INT32(collection_typmodin_common(ta, "ICOLLECTION"));
 }
 
 Datum
 icollection_typmodout(PG_FUNCTION_ARGS)
 {
 	Oid			typmod = PG_GETARG_OID(0);
-	char	   *res = (char *) palloc(NAMEDATALEN);
 
-	res = DatumGetCString(DirectFunctionCall1(regtypeout, typmod));
-
-	PG_RETURN_CSTRING(res);
+	PG_RETURN_CSTRING(collection_typmodout_common(typmod));
 }
 
 Datum
 icollection_cast(PG_FUNCTION_ARGS)
 {
 	ICollectionHeader *icolhdr;
-	Oid			typmod;
+	Oid			typmod = PG_GETARG_INT32(1);
 
 	icolhdr = fetch_icollection(fcinfo, 0);
-	typmod = PG_GETARG_OID(1);
 
-	if (icolhdr->value_type == InvalidOid)
-	{
-		icolhdr->value_type = typmod;
-		get_typlenbyval(typmod, &icolhdr->value_type_len, &icolhdr->value_byval);
-	}
+	collection_cast_common((CollectionHeaderCommon *) icolhdr, typmod, fcinfo);
 
 	PG_RETURN_DATUM(EOHPGetRWDatum(&icolhdr->hdr));
 }

@@ -161,7 +161,6 @@ collection_add(PG_FUNCTION_ARGS)
 Datum
 collection_count(PG_FUNCTION_ARGS)
 {
-	Size		count;
 	CollectionHeader *colhdr;
 
 	if (PG_ARGISNULL(0))
@@ -169,16 +168,7 @@ collection_count(PG_FUNCTION_ARGS)
 
 	colhdr = fetch_collection(fcinfo, 0);
 
-	if (colhdr->head == NULL)
-		return 0;
-
-	pgstat_report_wait_start(collection_we_count);
-
-	count = HASH_COUNT(colhdr->head);
-
-	pgstat_report_wait_end();
-
-	PG_RETURN_INT32(count);
+	PG_RETURN_INT32(collection_count_common((CollectionHeaderCommon *) colhdr));
 }
 
 Datum
@@ -219,17 +209,10 @@ collection_find(PG_FUNCTION_ARGS)
 		PG_RETURN_NULL();
 	}
 
-	value = datumCopy(item->value, colhdr->value_byval, colhdr->value_type_len);
-
 	get_call_result_type(fcinfo, &rettype, NULL);
-
-	if (!can_coerce_type(1, &rettype, &colhdr->value_type, COERCION_IMPLICIT))
-	{
-		pgstat_report_wait_end();
-		ereport(ERROR,
-				(errcode(ERRCODE_DATATYPE_MISMATCH),
-				 errmsg("Value type does not match the return type")));
-	}
+	value = collection_coerce_value(item->value, colhdr->value_type,
+									colhdr->value_byval,
+									colhdr->value_type_len, rettype);
 
 	stats.find++;
 	pgstat_report_wait_end();
@@ -452,17 +435,12 @@ collection_value(PG_FUNCTION_ARGS)
 
 	pgstat_report_wait_start(collection_we_value);
 
-	value = datumCopy(colhdr->current->value, colhdr->value_byval, colhdr->value_type_len);
-
 	get_call_result_type(fcinfo, &rettype, NULL);
-
-	if (!can_coerce_type(1, &rettype, &colhdr->value_type, COERCION_IMPLICIT))
-	{
-		pgstat_report_wait_end();
-		ereport(ERROR,
-				(errcode(ERRCODE_DATATYPE_MISMATCH),
-				 errmsg("Value type does not match the return type")));
-	}
+	value = collection_coerce_value(colhdr->current->value,
+									colhdr->value_type,
+									colhdr->value_byval,
+									colhdr->value_type_len,
+									rettype);
 
 	pgstat_report_wait_end();
 
@@ -479,10 +457,7 @@ collection_isnull(PG_FUNCTION_ARGS)
 
 	colhdr = fetch_collection(fcinfo, 0);
 
-	if (colhdr->current == NULL)
-		PG_RETURN_BOOL(true);
-
-	PG_RETURN_BOOL(false);
+	PG_RETURN_BOOL(collection_isnull_common((CollectionHeaderCommon *) colhdr));
 }
 
 Datum
@@ -491,9 +466,7 @@ collection_next(PG_FUNCTION_ARGS)
 	CollectionHeader *colhdr;
 
 	colhdr = fetch_collection(fcinfo, 0);
-
-	if (colhdr->current)
-		colhdr->current = colhdr->current->hh.next;
+	collection_next_common((CollectionHeaderCommon *) colhdr);
 
 	PG_RETURN_DATUM(EOHPGetRWDatum(&colhdr->hdr));
 }
@@ -504,9 +477,7 @@ collection_prev(PG_FUNCTION_ARGS)
 	CollectionHeader *colhdr;
 
 	colhdr = fetch_collection(fcinfo, 0);
-
-	if (colhdr->current)
-		colhdr->current = colhdr->current->hh.prev;
+	collection_prev_common((CollectionHeaderCommon *) colhdr);
 
 	PG_RETURN_DATUM(EOHPGetRWDatum(&colhdr->hdr));
 }
@@ -517,7 +488,7 @@ collection_first(PG_FUNCTION_ARGS)
 	CollectionHeader *colhdr;
 
 	colhdr = fetch_collection(fcinfo, 0);
-	colhdr->current = colhdr->head;
+	collection_first_common((CollectionHeaderCommon *) colhdr);
 
 	PG_RETURN_DATUM(EOHPGetRWDatum(&colhdr->hdr));
 }
@@ -528,10 +499,7 @@ collection_last(PG_FUNCTION_ARGS)
 	CollectionHeader *colhdr;
 
 	colhdr = fetch_collection(fcinfo, 0);
-
-	if (colhdr->current)
-		colhdr->current = ELMT_FROM_HH(colhdr->current->hh.tbl, colhdr->current->hh.tbl->tail);
-
+	collection_last_common((CollectionHeaderCommon *) colhdr);
 
 	PG_RETURN_DATUM(EOHPGetRWDatum(&colhdr->hdr));
 }
@@ -625,225 +593,112 @@ collection_last_key(PG_FUNCTION_ARGS)
 	PG_RETURN_TEXT_P(cstring_to_text(item->key));
 }
 
+/* SRF callbacks for collection */
+static Datum
+col_srf_get_key(void *cur)
+{
+	return CStringGetTextDatum(((collection *) cur)->key);
+}
+
+static Datum
+col_srf_get_value(void *cur)
+{
+	return ((collection *) cur)->value;
+}
+
+static bool
+col_srf_get_isnull(void *cur)
+{
+	return ((collection *) cur)->isnull;
+}
+
+static void *
+col_srf_get_next(void *cur)
+{
+	return ((collection *) cur)->hh.next;
+}
+
+static CollectionSRFContext col_srf_tmpl =
+{
+	.get_key = col_srf_get_key,
+		.get_value = col_srf_get_value,
+		.get_isnull = col_srf_get_isnull,
+		.get_next = col_srf_get_next,
+};
+
 Datum
 collection_keys_to_table(PG_FUNCTION_ARGS)
 {
-	typedef struct
-	{
-		collection *cur;
-	}			to_table_fctx;
-
-	FuncCallContext *funcctx;
-	to_table_fctx *fctx;
 	CollectionHeader *colhdr;
-	MemoryContext oldcontext;
+	CollectionSRFContext tmpl;
 
-	/* stuff done only on the first call of the function */
 	if (SRF_IS_FIRSTCALL())
 	{
 		pgstat_report_wait_start(collection_we_to_table);
-		funcctx = SRF_FIRSTCALL_INIT();
-
-		oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
-
-		fctx = (to_table_fctx *) palloc(sizeof(to_table_fctx));
 		colhdr = fetch_collection(fcinfo, 0);
-		fctx->cur = colhdr->head;
-		funcctx->user_fctx = fctx;
-
-		MemoryContextSwitchTo(oldcontext);
+		tmpl = col_srf_tmpl;
+		tmpl.eoh = &colhdr->hdr;
+		return collection_srf_keys_to_table(fcinfo, colhdr->head, &tmpl);
 	}
 
-	funcctx = SRF_PERCALL_SETUP();
-	fctx = funcctx->user_fctx;
-
-	if (fctx->cur != NULL)
-	{
-		Datum		value = CStringGetTextDatum(fctx->cur->key);
-
-		fctx->cur = fctx->cur->hh.next;
-
-		SRF_RETURN_NEXT(funcctx, value);
-	}
-	else
-	{
-		pgstat_report_wait_end();
-		/* do when there is no more left */
-		SRF_RETURN_DONE(funcctx);
-	}
+	return collection_srf_keys_to_table(fcinfo, NULL, NULL);
 }
 
 Datum
 collection_values_to_table(PG_FUNCTION_ARGS)
 {
-	typedef struct
-	{
-		collection *cur;
-		int16		typelen;
-		bool		typebyval;
-	}			to_table_fctx;
-
-	FuncCallContext *funcctx;
-	to_table_fctx *fctx;
 	CollectionHeader *colhdr;
-	MemoryContext oldcontext;
-	Oid			rettype;
+	CollectionSRFContext tmpl;
 
-	/* stuff done only on the first call of the function */
 	if (SRF_IS_FIRSTCALL())
 	{
 		pgstat_report_wait_start(collection_we_to_table);
-		funcctx = SRF_FIRSTCALL_INIT();
-
-		oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
-
-		fctx = (to_table_fctx *) palloc(sizeof(to_table_fctx));
 		colhdr = fetch_collection(fcinfo, 0);
-		fctx->cur = colhdr->head;
-		fctx->typelen = colhdr->value_type_len;
-		fctx->typebyval = colhdr->value_byval;
-		funcctx->user_fctx = fctx;
-
-		get_call_result_type(fcinfo, &rettype, NULL);
-
-		if (!can_coerce_type(1, &rettype, &colhdr->value_type, COERCION_IMPLICIT))
-		{
-			ereport(ERROR,
-					(errcode(ERRCODE_DATATYPE_MISMATCH),
-					 errmsg("Value type does not match the return type")));
-		}
-
-		MemoryContextSwitchTo(oldcontext);
+		tmpl = col_srf_tmpl;
+		tmpl.eoh = &colhdr->hdr;
+		tmpl.typelen = colhdr->value_type_len;
+		tmpl.typebyval = colhdr->value_byval;
+		return collection_srf_values_to_table(fcinfo, colhdr->head,
+											  colhdr->value_type, &tmpl);
 	}
 
-	funcctx = SRF_PERCALL_SETUP();
-	fctx = funcctx->user_fctx;
-
-	if (fctx->cur != NULL)
-	{
-		if (fctx->cur->isnull)
-		{
-			fctx->cur = fctx->cur->hh.next;
-			SRF_RETURN_NEXT_NULL(funcctx);
-		}
-		else
-		{
-			Datum		value = datumCopy(fctx->cur->value, fctx->typebyval, fctx->typelen);
-
-			fctx->cur = fctx->cur->hh.next;
-			SRF_RETURN_NEXT(funcctx, value);
-		}
-	}
-	else
-	{
-		pgstat_report_wait_end();
-		/* do when there is no more left */
-		SRF_RETURN_DONE(funcctx);
-	}
+	return collection_srf_values_to_table(fcinfo, NULL, InvalidOid, NULL);
 }
 
 Datum
 collection_to_table(PG_FUNCTION_ARGS)
 {
-	typedef struct
-	{
-		collection *cur;
-		int16		typelen;
-		bool		typebyval;
-		TupleDesc	tupdesc;
-	}			to_table_fctx;
-
-	FuncCallContext *funcctx;
-	to_table_fctx *fctx;
 	CollectionHeader *colhdr;
-	MemoryContext oldcontext;
-	Oid			rettype;
-	ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
+	CollectionSRFContext tmpl;
 
-	/* stuff done only on the first call of the function */
 	if (SRF_IS_FIRSTCALL())
 	{
-		/* check to see if caller supports us returning a tuplestore */
-		if (rsinfo == NULL || !IsA(rsinfo, ReturnSetInfo))
-			ereport(ERROR,
-					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					 errmsg("set-valued function called in context that cannot accept a set")));
-		if (!(rsinfo->allowedModes & SFRM_Materialize))
-			ereport(ERROR,
-					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					 errmsg("materialize mode required, but it is not allowed in this context")));
-
 		pgstat_report_wait_start(collection_we_to_table);
-		funcctx = SRF_FIRSTCALL_INIT();
-
-		oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
-
-		fctx = (to_table_fctx *) palloc(sizeof(to_table_fctx));
 		colhdr = fetch_collection(fcinfo, 0);
-		fctx->cur = colhdr->head;
-		fctx->typelen = colhdr->value_type_len;
-		fctx->typebyval = colhdr->value_byval;
-
-		if (rsinfo->expectedDesc->natts != 2)
-			ereport(ERROR,
-					(errcode(ERRCODE_DATATYPE_MISMATCH),
-					 errmsg("Return record must have 2 attributes")));
-
-		rettype = TupleDescAttr(rsinfo->expectedDesc, 1)->atttypid;
-
-		if (!can_coerce_type(1, &rettype, &colhdr->value_type, COERCION_IMPLICIT))
-			ereport(ERROR,
-					(errcode(ERRCODE_DATATYPE_MISMATCH),
-					 errmsg("Value type does not match the return type")));
-
-		fctx->tupdesc = CreateTupleDescCopy(rsinfo->expectedDesc);
-
-		funcctx->user_fctx = fctx;
-
-		MemoryContextSwitchTo(oldcontext);
+		tmpl = col_srf_tmpl;
+		tmpl.eoh = &colhdr->hdr;
+		tmpl.typelen = colhdr->value_type_len;
+		tmpl.typebyval = colhdr->value_byval;
+		return collection_srf_to_table(fcinfo, colhdr->head,
+									   colhdr->value_type, &tmpl);
 	}
 
-	funcctx = SRF_PERCALL_SETUP();
-	fctx = funcctx->user_fctx;
-
-	if (fctx->cur != NULL)
-	{
-		Datum		values[2];
-		bool		nulls[2] = {0};
-		HeapTuple	tuple;
-
-		values[0] = CStringGetTextDatum(fctx->cur->key);
-
-		if (fctx->cur->isnull)
-			nulls[1] = true;
-		else
-			values[1] = datumCopy(fctx->cur->value, fctx->typebyval, fctx->typelen);
-
-		tuple = heap_form_tuple(fctx->tupdesc, values, nulls);
-
-		fctx->cur = fctx->cur->hh.next;
-
-		SRF_RETURN_NEXT(funcctx, HeapTupleGetDatum(tuple));
-	}
-	else
-	{
-		pgstat_report_wait_end();
-		/* do when there is no more left */
-		SRF_RETURN_DONE(funcctx);
-	}
+	return collection_srf_to_table(fcinfo, NULL, InvalidOid, NULL);
 }
 
 Datum
 collection_value_type(PG_FUNCTION_ARGS)
 {
 	CollectionHeader *colhdr;
+	Datum		result;
 
 	colhdr = fetch_collection(fcinfo, 0);
+	result = collection_value_type_common((CollectionHeaderCommon *) colhdr);
 
-	if (colhdr->head == NULL || colhdr->value_type == InvalidOid)
+	if (result == (Datum) 0)
 		PG_RETURN_NULL();
 
-	PG_RETURN_OID(colhdr->value_type);
+	PG_RETURN_DATUM(result);
 }
 
 Datum

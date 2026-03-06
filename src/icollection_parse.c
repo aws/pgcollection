@@ -25,40 +25,6 @@
 
 #include "collection.h"
 
-typedef enum
-{
-	EXPECT_TOPLEVEL_START,
-	EXPECT_TOPLEVEL_END,
-	EXPECT_TOPLEVEL_FIELD,
-	EXPECT_VALUE_TYPE,
-	EXPECT_ENTRIES,
-	EXPECT_ENTRIES_OBJECT,
-	EXPECT_EOF,
-}			JsonICollectionSemanticState;
-
-struct JsonICollectionParseContext;
-typedef struct JsonICollectionParseContext JsonICollectionParseContext;
-
-struct JsonICollectionParseContext
-{
-	void	   *private_data;
-};
-
-typedef struct
-{
-	JsonLexContext *lex;
-	JsonICollectionParseContext *context;
-	JsonICollectionSemanticState state;
-
-	char	   *typname;
-	List	   *keys;
-	List	   *values;
-	List	   *nulls;
-}			JsonICollectionParseState;
-
-static JsonParseErrorType json_icollection_object_start(void *state);
-static JsonParseErrorType json_icollection_object_end(void *state);
-static JsonParseErrorType json_icollection_array_start(void *state);
 static JsonParseErrorType json_icollection_object_field_start(void *state,
 															  char *fname,
 															  bool isnull);
@@ -80,46 +46,15 @@ parse_icollection(char *json)
 
 	JsonParseErrorType json_error;
 	JsonSemAction sem;
-	JsonICollectionParseState parse;
-	JsonICollectionParseContext context;
+	CollectionParseState parse;
 
 	icolhdr = construct_empty_icollection(CurrentMemoryContext);
 
 	oldcxt = MemoryContextSwitchTo(icolhdr->hdr.eoh_context);
 
-	context.private_data = json;
-
-	parse.context = &context;
-	parse.state = EXPECT_TOPLEVEL_START;
-#if (PG_VERSION_NUM >= 170000)
-	parse.lex = makeJsonLexContextCstringLen(NULL, json, strlen(json), PG_UTF8, true);
-#else
-	parse.lex = makeJsonLexContextCstringLen(json, strlen(json), PG_UTF8, true);
-#endif
-	parse.keys = NIL;
-	parse.values = NIL;
-	parse.nulls = NIL;
-	parse.typname = NULL;
-
-	sem.semstate = &parse;
-
-#if (PG_VERSION_NUM >= 160000)
-	sem.object_start = json_icollection_object_start;
-	sem.object_end = json_icollection_object_end;
-	sem.array_start = json_icollection_array_start;
-	sem.object_field_start = json_icollection_object_field_start;
-	sem.scalar = json_icollection_scalar;
-#else
-	sem.object_start = (void *) json_icollection_object_start;
-	sem.object_end = (void *) json_icollection_object_end;
-	sem.array_start = (void *) json_icollection_array_start;
-	sem.object_field_start = (void *) json_icollection_object_field_start;
-	sem.scalar = (void *) json_icollection_scalar;
-#endif
-	sem.array_end = NULL;
-	sem.object_field_end = NULL;
-	sem.array_element_start = NULL;
-	sem.array_element_end = NULL;
+	collection_parse_init(&parse, &sem, json,
+						  json_icollection_object_field_start,
+						  json_icollection_scalar);
 
 	json_error = pg_parse_json(parse.lex, &sem);
 	if (json_error != JSON_SUCCESS)
@@ -185,76 +120,26 @@ parse_icollection(char *json)
 	return icolhdr;
 }
 
-static JsonParseErrorType
-json_icollection_object_start(void *state)
-{
-	JsonICollectionParseState *parse = state;
-
-	switch (parse->state)
-	{
-		case EXPECT_TOPLEVEL_START:
-			parse->state = EXPECT_TOPLEVEL_FIELD;
-			break;
-
-		case EXPECT_ENTRIES:
-			parse->state = EXPECT_ENTRIES_OBJECT;
-			break;
-
-		default:
-			elog(ERROR, "unexpected object start");
-			break;
-	}
-
-	return JSON_SUCCESS;
-}
-
-static JsonParseErrorType
-json_icollection_object_end(void *state)
-{
-	JsonICollectionParseState *parse = state;
-
-	switch (parse->state)
-	{
-		case EXPECT_TOPLEVEL_END:
-			parse->state = EXPECT_EOF;
-			break;
-
-		case EXPECT_ENTRIES_OBJECT:
-			parse->state = EXPECT_TOPLEVEL_END;
-			break;
-
-		default:
-			elog(ERROR, "unexpected object end");
-			break;
-	}
-
-	return JSON_SUCCESS;
-}
-
-static JsonParseErrorType
-json_icollection_array_start(void *state)
-{
-	elog(ERROR, "Invalid icollection format");
-	return JSON_INVALID_TOKEN;
-}
-
+/*
+ * ICollection-specific: stores keys via pstrdup, no pfree of fname.
+ */
 static JsonParseErrorType
 json_icollection_object_field_start(void *state, char *fname, bool isnull)
 {
-	JsonICollectionParseState *parse = state;
+	CollectionParseState *parse = state;
 
 	switch (parse->state)
 	{
-		case EXPECT_TOPLEVEL_FIELD:
+		case COLL_PARSE_EXPECT_TOPLEVEL_FIELD:
 			if (strcmp(fname, "value_type") == 0)
-				parse->state = EXPECT_VALUE_TYPE;
+				parse->state = COLL_PARSE_EXPECT_VALUE_TYPE;
 			else if (strcmp(fname, "entries") == 0)
-				parse->state = EXPECT_ENTRIES;
+				parse->state = COLL_PARSE_EXPECT_ENTRIES;
 			else
 				elog(ERROR, "unexpected field: %s", fname);
 			break;
 
-		case EXPECT_ENTRIES_OBJECT:
+		case COLL_PARSE_EXPECT_ENTRIES_OBJECT:
 			parse->keys = lappend(parse->keys, pstrdup(fname));
 			break;
 
@@ -266,19 +151,22 @@ json_icollection_object_field_start(void *state, char *fname, bool isnull)
 	return JSON_SUCCESS;
 }
 
+/*
+ * ICollection-specific: uses pstrdup for tokens, handles NULL token type.
+ */
 static JsonParseErrorType
 json_icollection_scalar(void *state, char *token, JsonTokenType tokentype)
 {
-	JsonICollectionParseState *parse = state;
+	CollectionParseState *parse = state;
 
 	switch (parse->state)
 	{
-		case EXPECT_VALUE_TYPE:
+		case COLL_PARSE_EXPECT_VALUE_TYPE:
 			parse->typname = pstrdup(token);
-			parse->state = EXPECT_TOPLEVEL_FIELD;
+			parse->state = COLL_PARSE_EXPECT_TOPLEVEL_FIELD;
 			break;
 
-		case EXPECT_ENTRIES_OBJECT:
+		case COLL_PARSE_EXPECT_ENTRIES_OBJECT:
 			if (tokentype == JSON_TOKEN_NULL)
 			{
 				parse->values = lappend(parse->values, NULL);

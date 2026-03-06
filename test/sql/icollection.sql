@@ -270,3 +270,278 @@ BEGIN
     ic[2] := 200;
     RAISE NOTICE 'value_type: %', value_type(ic);
 END $$;
+
+-- Test polymorphic value
+DO $$
+DECLARE
+  ic   icollection;
+BEGIN
+  RAISE NOTICE 'Test 7';
+  ic := add(ic, 1, 'Hello World'::text);
+  RAISE NOTICE 'value: %', value(ic, null::varchar);
+END
+$$;
+
+DO $$
+DECLARE
+  ic   icollection;
+BEGIN
+  RAISE NOTICE 'Test 8';
+  ic := add(ic, 1, '1999-12-31'::date);
+  RAISE NOTICE 'value: %', value(ic, null::date);
+END
+$$;
+
+-- Test polymorphic find
+DO $$
+DECLARE
+  ic   icollection;
+BEGIN
+  RAISE NOTICE 'Test 9';
+  ic := add(ic, 1, 'Hello World'::text);
+  ic := add(ic, 2, 'Hello All'::text);
+  RAISE NOTICE 'find: %', find(ic, 1, null::text);
+END
+$$;
+
+DO $$
+DECLARE
+  ic   icollection;
+BEGIN
+  RAISE NOTICE 'Test 10';
+  ic := add(ic, 1, '1999-12-31'::date);
+  ic := add(ic, 2, '2000-01-01'::date);
+  RAISE NOTICE 'find: %', find(ic, 1, null::text);
+END
+$$;
+
+-- Test delete then re-add
+DO $$
+DECLARE
+  ic   icollection;
+BEGIN
+  RAISE NOTICE 'Test 11';
+  ic := add(ic, 1, 'Hello World'::text);
+  ic := add(ic, 2, 'Hello All'::text);
+  ic := delete(ic, 1);
+  ic := delete(ic, 2);
+  ic := add(ic, 1, 'Hello'::text);
+  ic := add(ic, 2, 'World'::text);
+  RAISE NOTICE 'count: %', count(ic);
+END
+$$;
+
+-- Test add with NULL value
+DO $$
+DECLARE
+  ic   icollection;
+BEGIN
+  RAISE NOTICE 'Test 12';
+  ic := add(ic, 1, 'Hello World'::text);
+  ic := add(ic, 2, null);
+  RAISE NOTICE 'count: %', count(ic);
+END
+$$;
+
+-- Test exist with NULL key
+DO $$
+DECLARE
+  ic   icollection;
+BEGIN
+  RAISE NOTICE 'Test 13';
+  ic := add(ic, 1, 'Hello World'::text);
+  ic := add(ic, 2, 'Hello All'::text);
+
+  RAISE NOTICE '2 exist: %', exist(ic, 2);
+  RAISE NOTICE '999 exist: %', exist(ic, 999);
+  RAISE NOTICE '<null> exist: %', exist(ic, null);
+END
+$$;
+
+-- Test find on uninitialized, empty, non-empty with missing key
+DO $$
+DECLARE
+  c1 icollection('text');
+BEGIN
+  RAISE NOTICE 'Test 14';
+  RAISE NOTICE 'find(c1): %', find(c1, 2, NULL::TEXT);
+END $$;
+
+DO $$
+DECLARE
+  c3 icollection('text');
+BEGIN
+  RAISE NOTICE 'Test 15';
+  c3 := add(c3, 1, 'Hello World');
+  RAISE NOTICE 'find(c3): %', find(c3, 2, NULL::TEXT);
+END $$;
+
+-- Test count on uninitialized and empty
+DO $$
+DECLARE
+  c1 icollection('text');
+  c3 icollection('text');
+BEGIN
+  RAISE NOTICE 'Test 16';
+
+  RAISE NOTICE 'count(c1): %', count(c1);
+
+  c3 := add(c3, 1, 'Hello World');
+  RAISE NOTICE 'count(c3): %', count(c3);
+END
+$$;
+
+-- Test duplicate key replacement
+DO $$
+DECLARE
+  val1 icollection('int4');
+BEGIN
+  RAISE NOTICE 'Test 17';
+  val1 := add(val1, 1, 1::int4);
+  val1 := add(val1, 1, 2::int4);
+END;
+$$;
+
+-- Test value_type
+DO $$
+DECLARE
+  ic  icollection;
+BEGIN
+  RAISE NOTICE 'Test 18';
+  ic := add(ic, 1, 111::bigint);
+  RAISE NOTICE 'The type is %', value_type(ic);
+END
+$$;
+
+-- Test mixed type error
+DO $$
+DECLARE
+  ic  icollection;
+BEGIN
+  RAISE NOTICE 'Test 19';
+  ic := add(ic, 1, 111::bigint);
+  ic := add(ic, 2, 'hello'::text);
+END
+$$;
+
+-- Test polymorphic value with bigint
+DO $$
+DECLARE
+  ic  icollection;
+BEGIN
+  RAISE NOTICE 'Test 20';
+  ic := add(ic, 1, 111::bigint);
+  ic := add(ic, 2, 222::bigint);
+  RAISE NOTICE 'The current val is %', value(ic, null::bigint);
+  RAISE NOTICE 'The current value type is %', pg_typeof(value(ic, null::bigint));
+END
+$$;
+
+-- Test typmod with numeric
+DO $$
+DECLARE
+  ic icollection('numeric(8,2)');
+BEGIN
+  RAISE NOTICE 'Test 21';
+  ic[1] := 3.14::numeric;
+END $$;
+
+-- Test JSON output
+DO $$
+DECLARE
+  ic   icollection('text');
+BEGIN
+  RAISE NOTICE 'Test 22';
+  ic := add(ic, 1, 'Hello World');
+  ic := add(ic, 2, 'Hello All');
+
+  RAISE NOTICE 'json: %', to_json(ic);
+END
+$$;
+
+DO $$
+DECLARE
+  ic   icollection('int');
+BEGIN
+  RAISE NOTICE 'Test 23';
+  ic := add(ic, 1, 42);
+  ic := add(ic, 2, 84);
+
+  RAISE NOTICE 'json: %', to_json(ic);
+END
+$$;
+
+-- Test table storage
+CREATE TABLE icollections_test (c1 int, c2 icollection);
+
+INSERT INTO icollections_test VALUES (1, add(null::icollection, 1, 'Hello World'));
+INSERT INTO icollections_test VALUES (2, add(null::icollection, 2, 'Hello ALL'));
+
+SELECT * FROM icollections_test ORDER BY c1;
+
+DROP TABLE icollections_test;
+
+-- Test stats (icollection shares collection_stats counters)
+SELECT collection_stats_reset();
+
+DO $$
+DECLARE
+  ic1 icollection('text');
+  ic2 icollection('text');
+BEGIN
+  RAISE NOTICE 'Test 24';
+  ic1 := add(ic1, 1, 'Hello World');
+  ic1 := add(ic1, 2, 'Hello All');
+
+  ic2 := ic1;
+  ic2 := add(ic2, 3, 'Hi');
+  RAISE NOTICE 'count: ic1(%), ic2(%)', count(ic1), count(ic2);
+END
+$$;
+
+SELECT * FROM collection_stats;
+
+-- Test copy semantics
+DO $$
+DECLARE
+  ic1 icollection('text');
+  ic2 icollection('text');
+BEGIN
+  RAISE NOTICE 'Test 25';
+  ic1 := add(ic1, 1, 'Hello World');
+  ic1 := add(ic1, 2, 'Hello All');
+
+  ic2 := copy(ic1);
+  ic2 := add(ic2, 3, 'Hi');
+  RAISE NOTICE 'count: ic1(%), ic2(%)', count(ic1), count(ic2);
+END
+$$;
+
+-- Test JSON parse errors
+SELECT '{"value_type": "text", "entries": {"1": "Hello World"}'::icollection;
+
+SELECT '{"value_type": "text", "entry": {"1": "Hello World"}}'::icollection;
+
+SELECT '{"entries": {"1": "Hello World"}}'::icollection;
+
+SELECT '{"entries": {"1": "Hello World"}, "value_type": "text"}'::icollection;
+
+SELECT '{"value_type": "text", "entries": {"1": "Hello World", "2": 1}}'::icollection;
+
+-- Test delete via SQL
+SELECT delete('{"value_type": "pg_catalog.text", "entries": {"1": "A", "2": "B", "3": "C"}}'::icollection, 1);
+
+-- Test nested icollection
+DO $$
+DECLARE
+  arr_instance icollection('icollection');
+BEGIN
+  RAISE NOTICE 'Test 26';
+
+  arr_instance := add(arr_instance, 1, add(NULL::icollection, 10, 1::int));
+
+  FOR i IN 1..10 LOOP
+    RAISE NOTICE 'Attempt: %', i;
+    arr_instance := add(arr_instance, 1, add(find(arr_instance, 1, NULL::icollection), 20, 1::int));
+  END LOOP;
+END $$;

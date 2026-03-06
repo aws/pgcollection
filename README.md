@@ -115,6 +115,7 @@ Both `collection` and `icollection` support the same set of functions. The only 
 | delete(icollection, bigint)             | icollection             | Deletes an item from an icollection                                                        |
 | exist(icollection, bigint)              | bool                    | Returns true if a given key exists in the icollection                                      |
 | find(icollection, bigint)               | text                    | Returns a text item from an icollection if it exists                                       |
+| find(icollection, bigint, anyelement)   | anyelement              | Returns an anyelement item from an icollection if it exists                                |
 | first(icollection)                      | icollection             | Sets the icollection iterator to the first item                                            |
 | last(icollection)                       | icollection             | Sets the icollection iterator to the last item                                             |
 | next(icollection)                       | icollection             | Sets the icollection iterator to the next item                                             |
@@ -128,9 +129,12 @@ Both `collection` and `icollection` support the same set of functions. The only 
 | isnull(icollection)                     | bool                    | Returns true if the current location of the iterator is null                               |
 | key(icollection)                        | bigint                  | Returns the key of the item the icollection is pointed at                                  |
 | value(icollection)                      | text                    | Returns the value as text of the item the icollection is pointed at                        |
+| value(icollection, anyelement)          | anyelement              | Returns the value as anyelement of the item the icollection is pointed at                  |
 | keys_to_table(icollection)              | SETOF bigint            | Returns all of the keys in the icollection                                                 |
 | values_to_table(icollection)            | SETOF text              | Returns all of the values as text in the icollection                                       |
+| values_to_table(icollection, anyelement) | SETOF anyelement       | Returns all of the values as anyelement in the icollection                                 |
 | to_table(icollection)                   | TABLE(bigint, text)     | Returns all of the keys and values as text in the icollection                              |
+| to_table(icollection, anyelement)       | TABLE(bigint, anyelement) | Returns all of the keys and values as anyelement in the icollection                      |
 | value_type(icollection)                 | regtype                 | Returns the data type of the elements within the icollection                               |
 
 ## Finding an Item in a Collection
@@ -558,14 +562,7 @@ PostgreSQL 17 introduced custom wait events enabling extensions to define events
 | CollectionInput               | Converting a collection from a string format to an optimized expanded format |
 | CollectionOutput              | Converting a collection to a string format for output                        |
 
-#### icollection Wait Events
-
-|      Wait Event               |    Description                                                               |
-| ----------------------------- | ---------------------------------------------------------------------------- |
-| ICollectionFetch              | Fetching an item in an icollection using a subscript                         |
-| ICollectionAssign             | Assigning a new item to an icollection using a subscript                     |
-
-Note: icollection shares the same wait events as collection for most operations (add, find, delete, etc.) since they use the same underlying statistics tracking.
+icollection shares all wait events with collection since both types use the same underlying implementation.
 
 ### Usage Statistics
 

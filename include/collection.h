@@ -16,7 +16,9 @@
 #ifndef __COLLECTION_H__
 #define __COLLECTION_H__
 
+#include "common/jsonapi.h"
 #include "fmgr.h"
+#include "nodes/pg_list.h"
 #include "storage/lwlock.h"
 #include "utils/expandeddatum.h"
 #include "utils/hsearch.h"
@@ -48,6 +50,36 @@
 					 errdetail("Key length %zu exceeds maximum allowed length %d", \
 							   strlen(key), INT16_MAX))); \
 	} while (0)
+
+/*
+ * Common header layout shared by CollectionHeader and ICollectionHeader.
+ * Both headers have identical field layout through current/head, differing
+ * only in the pointer types.  This allows shared functions to operate on
+ * either type via a cast.
+ */
+typedef struct CollectionHeaderCommon
+{
+	ExpandedObjectHeader hdr;
+	int			collection_magic;
+	Oid			value_type;
+	int16		value_type_len;
+	bool		value_byval;
+	size_t		flat_size;
+	void	   *current;
+	void	   *head;
+}			CollectionHeaderCommon;
+
+/*
+ * Minimal entry struct for hash navigation.  Both collection and icollection
+ * entries have UT_hash_handle hh at the same offset (after key + value +
+ * isnull, all padded to 24 bytes).  This struct lets shared code navigate
+ * the hash chain without knowing the key type.
+ */
+typedef struct CollectionEntryCommon
+{
+	char		_pad[24];		/* key + value + isnull (same size both types) */
+	UT_hash_handle hh;
+}			CollectionEntryCommon;
 
 typedef struct collection
 {
@@ -167,6 +199,121 @@ void		collection_flatten_into(ExpandedObjectHeader *eohptr,
 #define ICOLLECTION_HASH_DELETE(head, item) \
 	HASH_DELETE(hh, head, item)
 
+/* Shared typmod helpers (collection_common.c) */
+struct ArrayType;
+extern int32 collection_typmodin_common(struct ArrayType *ta, const char *type_name);
+extern char *collection_typmodout_common(Oid typmod);
+
+/*
+ * Shared JSON parse state machine for collection/icollection parsing.
+ * Used by collection_parse.c and icollection_parse.c.
+ */
+typedef enum
+{
+	COLL_PARSE_EXPECT_TOPLEVEL_START,
+	COLL_PARSE_EXPECT_TOPLEVEL_END,
+	COLL_PARSE_EXPECT_TOPLEVEL_FIELD,
+	COLL_PARSE_EXPECT_VALUE_TYPE,
+	COLL_PARSE_EXPECT_ENTRIES,
+	COLL_PARSE_EXPECT_ENTRIES_OBJECT,
+	COLL_PARSE_EXPECT_EOF,
+}			CollectionParseSemanticState;
+
+typedef struct CollectionParseState
+{
+	JsonLexContext *lex;
+	CollectionParseSemanticState state;
+
+	char	   *typname;
+	List	   *keys;
+	List	   *values;
+	List	   *nulls;
+}			CollectionParseState;
+
+/* Shared JSON parse callbacks (collection_common.c) */
+extern JsonParseErrorType collection_parse_object_start(void *state);
+extern JsonParseErrorType collection_parse_object_end(void *state);
+extern JsonParseErrorType collection_parse_array_start(void *state);
+extern void collection_parse_init(CollectionParseState * parse,
+								  JsonSemAction *sem,
+								  char *json,
+								  void *object_field_start,
+								  void *scalar);
+
+/*
+ * Shared SRF iteration context for keys_to_table, values_to_table, to_table.
+ * Both collection and icollection use this with type-specific callbacks.
+ */
+typedef struct CollectionSRFContext
+{
+	void	   *cur;			/* opaque pointer to current hash entry */
+	void	   *eoh;			/* ExpandedObjectHeader, prevents GC */
+	int16		typelen;
+	bool		typebyval;
+	void	   *tupdesc;		/* TupleDesc, for to_table only */
+
+	/* Callbacks */
+	Datum		(*get_key) (void *cur);
+	Datum		(*get_value) (void *cur);
+	bool		(*get_isnull) (void *cur);
+	void	   *(*get_next) (void *cur);
+}			CollectionSRFContext;
+
+extern Datum collection_srf_keys_to_table(FunctionCallInfo fcinfo,
+										  void *head,
+										  CollectionSRFContext * tmpl);
+extern Datum collection_srf_values_to_table(FunctionCallInfo fcinfo,
+											void *head,
+											Oid value_type,
+											CollectionSRFContext * tmpl);
+extern Datum collection_srf_to_table(FunctionCallInfo fcinfo,
+									 void *head,
+									 Oid value_type,
+									 CollectionSRFContext * tmpl);
+
+/* Shared simple userfuncs (collection_common.c) */
+extern int32 collection_count_common(CollectionHeaderCommon * hdr);
+extern bool collection_isnull_common(CollectionHeaderCommon * hdr);
+extern void collection_first_common(CollectionHeaderCommon * hdr);
+extern void collection_last_common(CollectionHeaderCommon * hdr);
+extern void collection_next_common(CollectionHeaderCommon * hdr);
+extern void collection_prev_common(CollectionHeaderCommon * hdr);
+extern Datum collection_value_type_common(CollectionHeaderCommon * hdr);
+extern void collection_cast_common(CollectionHeaderCommon * hdr,
+								   Oid typmod, FunctionCallInfo fcinfo);
+
+/*
+ * Shared value coercion: try native coerce, fall back to text conversion,
+ * else error.  Returns the coerced Datum.  Caller must have already checked
+ * that the value is not null.
+ */
+extern Datum collection_coerce_value(Datum value, Oid value_type,
+									 bool value_byval, int16 value_type_len,
+									 Oid rettype);
+
+/*
+ * Shared subscript workspace used by both collection and icollection.
+ * The struct layout is identical for both types.
+ */
+typedef struct CollectionSubWorkspace
+{
+	Oid			value_type;
+	int16		value_type_len;
+	bool		value_byval;
+}			CollectionSubWorkspace;
+
+/* Forward declarations to avoid including heavy executor headers */
+struct SubscriptingRef;
+struct SubscriptingRefState;
+struct SubscriptExecSteps;
+
+extern void collection_exec_setup_common(const struct SubscriptingRef *sbsref,
+										 struct SubscriptingRefState *sbsrefstate,
+										 struct SubscriptExecSteps *methods,
+										 Oid type_oid,
+										 void *fetch_fn,
+										 void *assign_fn);
+
 /* custom wait event values, retrieved from shared memory */
 extern uint32 collection_we_flatsize;
 extern uint32 collection_we_flatten;
@@ -186,7 +333,6 @@ extern uint32 collection_we_assign;
 extern uint32 collection_we_input;
 extern uint32 collection_we_output;
 
-extern uint32 icollection_we_fetch;
-extern uint32 icollection_we_assign;
+
 
 #endif							/* __COLLECTION_H__ */

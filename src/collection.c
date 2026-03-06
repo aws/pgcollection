@@ -250,8 +250,6 @@ _PG_init(void)
 	collection_we_assign = WaitEventExtensionNew("CollectionAssign");
 	collection_we_input = WaitEventExtensionNew("CollectionInput");
 	collection_we_output = WaitEventExtensionNew("CollectionOutput");
-	icollection_we_fetch = WaitEventExtensionNew("ICollectionFetch");
-	icollection_we_assign = WaitEventExtensionNew("ICollectionAssign");
 #else
 	collection_we_flatsize = PG_WAIT_EXTENSION;
 	collection_we_flatten = PG_WAIT_EXTENSION;
@@ -268,8 +266,6 @@ _PG_init(void)
 	collection_we_assign = PG_WAIT_EXTENSION;
 	collection_we_input = PG_WAIT_EXTENSION;
 	collection_we_output = PG_WAIT_EXTENSION;
-	icollection_we_fetch = PG_WAIT_EXTENSION;
-	icollection_we_assign = PG_WAIT_EXTENSION;
 #endif
 }
 

@@ -221,15 +221,15 @@ icollection_get_flat_size(ExpandedObjectHeader *eohptr)
 	ICollectionHeader *hdr = (ICollectionHeader *) eohptr;
 	icollection *cur;
 	size_t		sz = 0;
-	
+
 	Assert(hdr->collection_magic == COLLECTION_MAGIC);
-	
+
 	/* Calculate size for each entry */
 	for (cur = hdr->head; cur != NULL; cur = cur->hh.next)
 	{
 		sz += sizeof(int64);	/* key */
 		sz += sizeof(size_t);	/* value length */
-		
+
 		if (!cur->isnull)
 		{
 			if (hdr->value_type_len != -1)
@@ -237,14 +237,15 @@ icollection_get_flat_size(ExpandedObjectHeader *eohptr)
 			else
 			{
 				struct varlena *s = (struct varlena *) DatumGetPointer(cur->value);
+
 				sz += (Size) VARSIZE_ANY(s);
 			}
 		}
 	}
-	
+
 	/* Add header size */
 	sz += sizeof(int32) + sizeof(int32) + sizeof(Oid);
-	
+
 	hdr->flat_size = sz;
 	return sz;
 }
@@ -255,38 +256,38 @@ icollection_get_flat_size(ExpandedObjectHeader *eohptr)
  */
 static void
 icollection_flatten_into(ExpandedObjectHeader *eohptr,
-						void *result, Size allocated_size)
+						 void *result, Size allocated_size)
 {
 	ICollectionHeader *hdr = (ICollectionHeader *) eohptr;
-	char *ptr = (char *) result;
-	int32 num_entries;
+	char	   *ptr = (char *) result;
+	int32		num_entries;
 	icollection *cur;
-	
+
 	Assert(hdr->collection_magic == COLLECTION_MAGIC);
 	Assert(allocated_size == hdr->flat_size);
-	
+
 	/* Write varlena header */
 	SET_VARSIZE(result, allocated_size);
 	ptr += sizeof(int32);
-	
+
 	/* Write number of entries */
 	num_entries = HASH_COUNT(hdr->head);
 	memcpy(ptr, &num_entries, sizeof(int32));
 	ptr += sizeof(int32);
-	
+
 	/* Write value type */
 	memcpy(ptr, &hdr->value_type, sizeof(Oid));
 	ptr += sizeof(Oid);
-	
+
 	/* Write each entry */
 	for (cur = hdr->head; cur != NULL; cur = cur->hh.next)
 	{
 		size_t		value_len;
-		
+
 		/* Write key */
 		memcpy(ptr, &cur->key, sizeof(int64));
 		ptr += sizeof(int64);
-		
+
 		/* Write value length and value */
 		if (cur->isnull)
 		{
@@ -299,13 +300,14 @@ icollection_flatten_into(ExpandedObjectHeader *eohptr,
 			else
 			{
 				struct varlena *s = (struct varlena *) DatumGetPointer(cur->value);
+
 				value_len = (size_t) VARSIZE_ANY(s);
 			}
 		}
-		
+
 		memcpy(ptr, &value_len, sizeof(size_t));
 		ptr += sizeof(size_t);
-		
+
 		if (value_len > 0)
 		{
 			if (hdr->value_type_len != -1)
@@ -357,8 +359,8 @@ fetch_icollection(FunctionCallInfo fcinfo, int argno)
 
 	if (!PG_ARGISNULL(argno))
 	{
-		Datum d = PG_GETARG_DATUM(argno);
-		
+		Datum		d = PG_GETARG_DATUM(argno);
+
 		/* Expand to writable form, preserving iterator if already expanded */
 		d = expand_icollection(d, CurrentMemoryContext);
 		hdr = (ICollectionHeader *) DatumGetEOHP(d);
@@ -376,13 +378,10 @@ fetch_icollection(FunctionCallInfo fcinfo, int argno)
 ICollectionHeader *
 DatumGetExpandedICollection(Datum d)
 {
-	ICollectionHeader *icolhdr;
-
 	/* If it's a writable expanded icollection already, just return it */
 	if (VARATT_IS_EXTERNAL_EXPANDED(DatumGetPointer(d)))
 	{
-		icolhdr = (ICollectionHeader *) DatumGetEOHP(d);
-		Assert(icolhdr->collection_magic == COLLECTION_MAGIC);
+		Assert(((ICollectionHeader *) DatumGetEOHP(d))->collection_magic == COLLECTION_MAGIC);
 		d = expand_icollection(d, CurrentMemoryContext);
 		return (ICollectionHeader *) DatumGetEOHP(d);
 	}

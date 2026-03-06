@@ -19,8 +19,7 @@ BEGIN
 END
 $$;
 NOTICE:  Test 2
-ERROR:  Value type does not match the return type
-CONTEXT:  PL/pgSQL function inline_code_block line 7 at RAISE
+NOTICE:  value: 12-31-1999
 DO $$
 DECLARE
   u   collection;
@@ -78,8 +77,7 @@ BEGIN
 END
 $$;
 NOTICE:  Test 7
-ERROR:  Value type does not match the return type
-CONTEXT:  PL/pgSQL function inline_code_block line 8 at RAISE
+NOTICE:  find: 12-31-1999
 DO $$
 DECLARE
   u   collection;

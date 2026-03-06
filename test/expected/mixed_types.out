@@ -40,8 +40,10 @@ BEGIN
         ic := next(ic);
     END LOOP;
 END $$;
-ERROR:  Value type does not match the return type
-CONTEXT:  PL/pgSQL function inline_code_block line 13 at RAISE
+NOTICE:  collection key: a, value: 1
+NOTICE:  collection key: b, value: 2
+NOTICE:  icollection key: 10, value: 100
+NOTICE:  icollection key: 20, value: 200
 -- Test 3: Copy and sort both types
 DO $$
 DECLARE
@@ -180,4 +182,4 @@ BEGIN
     RAISE NOTICE 'icollection value_type: %', value_type(ic);
 END $$;
 NOTICE:  collection value_type: integer
-NOTICE:  icollection value_type: 23
+NOTICE:  icollection value_type: integer

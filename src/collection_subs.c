@@ -48,14 +48,6 @@
 		} \
 	} while (0)
 
-typedef struct CollectionSubWorkspace
-{
-	/* Values determined during expression compilation */
-	Oid			value_type;
-	int16		value_type_len;
-	bool		value_byval;
-}			CollectionSubWorkspace;
-
 PG_FUNCTION_INFO_V1(collection_subscript_handler);
 
 static Oid	collection_oid;
@@ -177,32 +169,10 @@ collection_subscript_fetch(ExprState *state,
 	else if (item->isnull)
 		value = (Datum) 0;
 	else
-	{
-		if (can_coerce_type(1, &workspace->value_type, &colhdr->value_type, COERCION_IMPLICIT))
-			value = datumCopy(item->value, colhdr->value_byval, colhdr->value_type_len);
-		else
-		{
-			if (workspace->value_type == TEXTOID)
-			{
-				bool		typisvarlena;
-				Oid			outfuncoid;
-
-				getTypeOutputInfo(colhdr->value_type, &outfuncoid, &typisvarlena);
-				value = CStringGetTextDatum(DatumGetCString(OidFunctionCall1(outfuncoid, item->value)));
-			}
-			else
-			{
-				stats.find++;
-				pgstat_report_wait_end();
-				ereport(ERROR,
-						(errcode(ERRCODE_DATATYPE_MISMATCH),
-						 errmsg("Incompatible value data type"),
-						 errdetail("Expecting %s, but received %s",
-								   format_type_extended(workspace->value_type, -1, 0),
-								   format_type_extended(colhdr->value_type, -1, 0))));
-			}
-		}
-	}
+		value = collection_coerce_value(item->value, colhdr->value_type,
+										colhdr->value_byval,
+										colhdr->value_type_len,
+										workspace->value_type);
 
 	if (value == (Datum) 0)
 		*op->resnull = true;
@@ -324,49 +294,17 @@ collection_subscript_assign(ExprState *state,
 }
 
 /*
- * Set up execution state for an collection subscript operation.
+ * Set up execution state for a collection subscript operation.
  */
 static void
 collection_exec_setup(const SubscriptingRef *sbsref,
 					  SubscriptingRefState *sbsrefstate,
 					  SubscriptExecSteps *methods)
 {
-	CollectionSubWorkspace *workspace;
-
-	/* Assert we are dealing with one subscript */
-	Assert(sbsrefstate->numlower == 0);
-	Assert(sbsrefstate->numupper == 1);
-	/* We can't check upperprovided[0] here, but it must be true */
-
-	/*
-	 * Allocate type-specific workspace.
-	 */
-	workspace = (CollectionSubWorkspace *) palloc(sizeof(CollectionSubWorkspace));
-	sbsrefstate->workspace = workspace;
-
-	/* Default to fetching as text unless the typmod is set */
-	if (sbsref->refrestype == collection_oid && sbsref->reftypmod != -1)
-	{
-		workspace->value_type = sbsref->reftypmod;
-		get_typlenbyval(sbsref->reftypmod, &workspace->value_type_len, &workspace->value_byval);
-	}
-	else if (sbsref->refrestype != InvalidOid && sbsref->refrestype != collection_oid && sbsref->reftypmod == -1)
-	{
-		workspace->value_type = sbsref->refrestype;
-		get_typlenbyval(sbsref->refrestype, &workspace->value_type_len, &workspace->value_byval);
-	}
-	else
-	{
-		workspace->value_type = TEXTOID;
-		workspace->value_type_len = -1;
-		workspace->value_byval = false;
-	}
-
-	/* Pass back pointers to appropriate step execution functions */
-	methods->sbs_check_subscripts = NULL;
-	methods->sbs_fetch = collection_subscript_fetch;
-	methods->sbs_assign = collection_subscript_assign;
-	methods->sbs_fetch_old = NULL;
+	collection_exec_setup_common(sbsref, sbsrefstate, methods,
+								 collection_oid,
+								 collection_subscript_fetch,
+								 collection_subscript_assign);
 }
 
 /*

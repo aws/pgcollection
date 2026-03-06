@@ -137,3 +137,173 @@ DROP PROCEDURE test_icollection_inout_accumulate(INOUT icollection, bigint, int4
 DROP PROCEDURE test_icollection_inout_with_iteration(INOUT icollection);
 DROP PROCEDURE test_icollection_inout_complex(INOUT icollection, text, bigint, text);
 DROP PROCEDURE test_icollection_inout_stress(INOUT icollection, int);
+-- Test 6: INOUT with null collection
+CREATE OR REPLACE PROCEDURE test_icollection_inout_null(INOUT ic icollection)
+AS $$
+BEGIN
+  IF ic IS NULL THEN
+    RAISE NOTICE 'Collection is null, creating new';
+  END IF;
+  ic := add(ic, 1, 'created'::text);
+END;
+$$ LANGUAGE plpgsql;
+DO $$
+DECLARE
+  ic icollection('text');
+BEGIN
+  CALL test_icollection_inout_null(ic);
+  RAISE NOTICE 'Null test result: % items', count(ic);
+END;
+$$;
+NOTICE:  Collection is null, creating new
+NOTICE:  Null test result: 1 items
+DROP PROCEDURE test_icollection_inout_null(INOUT icollection);
+-- Test 7: Nested INOUT calls
+CREATE OR REPLACE PROCEDURE test_icollection_inout_nested_inner(INOUT ic icollection, val text)
+AS $$
+BEGIN
+  ic := add(ic, 100, val);
+END;
+$$ LANGUAGE plpgsql;
+CREATE OR REPLACE PROCEDURE test_icollection_inout_nested_outer(INOUT ic icollection)
+AS $$
+BEGIN
+  ic := add(ic, 1, 'start');
+  CALL test_icollection_inout_nested_inner(ic, 'nested_value');
+  ic := add(ic, 200, 'end');
+END;
+$$ LANGUAGE plpgsql;
+DO $$
+DECLARE
+  ic icollection('text');
+BEGIN
+  CALL test_icollection_inout_nested_outer(ic);
+  RAISE NOTICE 'Nested test: % items', count(ic);
+
+  ic := first(ic);
+  WHILE NOT isnull(ic) LOOP
+    RAISE NOTICE 'Nested result: % = %', key(ic), value(ic);
+    ic := next(ic);
+  END LOOP;
+END;
+$$;
+NOTICE:  Nested test: 3 items
+NOTICE:  Nested result: 1 = start
+NOTICE:  Nested result: 100 = nested_value
+NOTICE:  Nested result: 200 = end
+DROP PROCEDURE test_icollection_inout_nested_inner(INOUT icollection, text);
+DROP PROCEDURE test_icollection_inout_nested_outer(INOUT icollection);
+-- Test 8: INOUT with sort
+CREATE OR REPLACE PROCEDURE test_icollection_inout_operations(INOUT ic icollection)
+AS $$
+BEGIN
+  ic := add(ic, 30, 'should_be_last');
+  ic := add(ic, 10, 'should_be_first');
+  ic := add(ic, 20, 'should_be_middle');
+  ic := sort(ic);
+END;
+$$ LANGUAGE plpgsql;
+DO $$
+DECLARE
+  ic icollection('text');
+BEGIN
+  CALL test_icollection_inout_operations(ic);
+  RAISE NOTICE 'Operations test: % items', count(ic);
+
+  ic := first(ic);
+  WHILE NOT isnull(ic) LOOP
+    RAISE NOTICE 'Sorted: % = %', key(ic), value(ic);
+    ic := next(ic);
+  END LOOP;
+END;
+$$;
+NOTICE:  Operations test: 3 items
+NOTICE:  Sorted: 10 = should_be_first
+NOTICE:  Sorted: 20 = should_be_middle
+NOTICE:  Sorted: 30 = should_be_last
+DROP PROCEDURE test_icollection_inout_operations(INOUT icollection);
+-- Test 9: INOUT with exception handling
+CREATE OR REPLACE PROCEDURE test_icollection_inout_exception(INOUT ic icollection, should_fail boolean)
+AS $$
+BEGIN
+  ic := add(ic, 1, 'added');
+
+  IF should_fail THEN
+    RAISE EXCEPTION 'Intentional test exception';
+  END IF;
+
+  ic := add(ic, 2, 'also_added');
+END;
+$$ LANGUAGE plpgsql;
+DO $$
+DECLARE
+  ic icollection('text');
+BEGIN
+  CALL test_icollection_inout_exception(ic, false);
+  RAISE NOTICE 'Exception test (success): % items', count(ic);
+
+  BEGIN
+    CALL test_icollection_inout_exception(ic, true);
+  EXCEPTION
+    WHEN OTHERS THEN
+      RAISE NOTICE 'Exception caught as expected';
+  END;
+
+  RAISE NOTICE 'Exception test (after failure): % items', count(ic);
+END;
+$$;
+NOTICE:  Exception test (success): 2 items
+NOTICE:  Exception caught as expected
+NOTICE:  Exception test (after failure): 2 items
+DROP PROCEDURE test_icollection_inout_exception(INOUT icollection, boolean);
+-- Test 10: INOUT with recursive calls
+CREATE OR REPLACE PROCEDURE test_icollection_inout_recursive(INOUT ic icollection, depth int)
+AS $$
+BEGIN
+  ic := add(ic, depth, 'level_' || depth);
+
+  IF depth > 1 THEN
+    CALL test_icollection_inout_recursive(ic, depth - 1);
+  END IF;
+
+  ic := add(ic, depth + 100, 'back_' || depth);
+END;
+$$ LANGUAGE plpgsql;
+DO $$
+DECLARE
+  ic icollection('text');
+BEGIN
+  CALL test_icollection_inout_recursive(ic, 3);
+  RAISE NOTICE 'Recursive test: % items', count(ic);
+
+  ic := first(ic);
+  WHILE NOT isnull(ic) LOOP
+    RAISE NOTICE 'Recursive result: % = %', key(ic), value(ic);
+    ic := next(ic);
+  END LOOP;
+END;
+$$;
+NOTICE:  Recursive test: 6 items
+NOTICE:  Recursive result: 3 = level_3
+NOTICE:  Recursive result: 2 = level_2
+NOTICE:  Recursive result: 1 = level_1
+NOTICE:  Recursive result: 101 = back_1
+NOTICE:  Recursive result: 102 = back_2
+NOTICE:  Recursive result: 103 = back_3
+DROP PROCEDURE test_icollection_inout_recursive(INOUT icollection, int);
+-- Test 11: Uninitialized INOUT
+CREATE OR REPLACE PROCEDURE test_icollection_uninit_inout(INOUT param_1 icollection('int4'))
+AS $$
+BEGIN
+END;
+$$ LANGUAGE plpgsql;
+DO $$
+DECLARE
+  var1 icollection('int4');
+BEGIN
+  CALL test_icollection_uninit_inout(var1);
+  CALL test_icollection_uninit_inout(var1);
+  RAISE NOTICE 'Uninitialized INOUT test passed';
+END $$;
+NOTICE:  Uninitialized INOUT test passed
+DROP PROCEDURE test_icollection_uninit_inout(icollection);

@@ -15,12 +15,15 @@
  */
 #include "postgres.h"
 
+#include "access/htup_details.h"
 #include "catalog/pg_type.h"
 #include "collection.h"
 #include "fmgr.h"
 #include "funcapi.h"
 #include "parser/parse_coerce.h"
+#include "pgstat.h"
 #include "utils/builtins.h"
+#include "utils/wait_event.h"
 #include "utils/datum.h"
 #include "utils/expandeddatum.h"
 #include "utils/lsyscache.h"
@@ -50,7 +53,7 @@ PG_FUNCTION_INFO_V1(icollection_first_key);
 PG_FUNCTION_INFO_V1(icollection_last_key);
 
 /* Forward declaration */
-static int icollection_by_key(const struct icollection *a, const struct icollection *b);
+static int	icollection_by_key(const struct icollection *a, const struct icollection *b);
 
 /*
  * icollection_add
@@ -76,6 +79,8 @@ icollection_add(PG_FUNCTION_ARGS)
 
 	hdr = fetch_icollection(fcinfo, 0);
 
+	pgstat_report_wait_start(collection_we_add);
+
 	oldcxt = MemoryContextSwitchTo(hdr->hdr.eoh_context);
 
 	key = PG_GETARG_INT64(1);
@@ -86,7 +91,6 @@ icollection_add(PG_FUNCTION_ARGS)
 	argtype = get_fn_expr_argtype(fcinfo->flinfo, 2);
 	get_typlenbyval(argtype, &argtypelen, &argtypebyval);
 
-	/* Set the value type of the collection to the first element added */
 	if (hdr->value_type == InvalidOid)
 	{
 		hdr->value_type = argtype;
@@ -97,6 +101,7 @@ icollection_add(PG_FUNCTION_ARGS)
 	{
 		if (!can_coerce_type(1, &argtype, &hdr->value_type, COERCION_IMPLICIT))
 		{
+			pgstat_report_wait_end();
 			ereport(ERROR,
 					(errcode(ERRCODE_DATATYPE_MISMATCH),
 					 errmsg("incompatible value data type"),
@@ -129,6 +134,9 @@ icollection_add(PG_FUNCTION_ARGS)
 
 	MemoryContextSwitchTo(oldcxt);
 
+	stats.add++;
+	pgstat_report_wait_end();
+
 	PG_RETURN_DATUM(EOHPGetRWDatum(&hdr->hdr));
 }
 
@@ -142,32 +150,57 @@ icollection_find(PG_FUNCTION_ARGS)
 	ICollectionHeader *hdr;
 	int64		key;
 	icollection *item;
-	Oid			outfuncoid;
-	bool		typisvarlena;
-	char	   *value_str;
+	Datum		value;
+	Oid			rettype;
 
 	if (PG_ARGISNULL(1))
+		PG_RETURN_NULL();
+
+	if (PG_ARGISNULL(0))
 		ereport(ERROR,
-				(errcode(ERRCODE_DATATYPE_MISMATCH),
-				 errmsg("key must not be null")));
+				(errcode(ERRCODE_NO_DATA_FOUND),
+				 errmsg("key not found")));
 
 	hdr = fetch_icollection(fcinfo, 0);
 	key = PG_GETARG_INT64(1);
 
+	if (hdr->head == NULL)
+	{
+		stats.find++;
+		ereport(ERROR,
+				(errcode(ERRCODE_NO_DATA_FOUND),
+				 errmsg("key \"%lld\" not found", (long long) key)));
+	}
+
+	pgstat_report_wait_start(collection_we_find);
+
 	ICOLLECTION_HASH_FIND(hdr->head, &key, item);
 
 	if (item == NULL)
+	{
+		stats.find++;
+		pgstat_report_wait_end();
 		ereport(ERROR,
-				(errcode(ERRCODE_DATATYPE_MISMATCH),
+				(errcode(ERRCODE_NO_DATA_FOUND),
 				 errmsg("key \"%lld\" not found", (long long) key)));
+	}
 
 	if (item->isnull)
+	{
+		stats.find++;
+		pgstat_report_wait_end();
 		PG_RETURN_NULL();
+	}
 
-	getTypeOutputInfo(hdr->value_type, &outfuncoid, &typisvarlena);
-	value_str = DatumGetCString(OidFunctionCall1(outfuncoid, item->value));
+	get_call_result_type(fcinfo, &rettype, NULL);
+	value = collection_coerce_value(item->value, hdr->value_type,
+									hdr->value_byval,
+									hdr->value_type_len, rettype);
 
-	PG_RETURN_TEXT_P(cstring_to_text(value_str));
+	stats.find++;
+	pgstat_report_wait_end();
+
+	PG_RETURN_DATUM(value);
 }
 
 /*
@@ -181,13 +214,27 @@ icollection_exist(PG_FUNCTION_ARGS)
 	int64		key;
 	icollection *item;
 
-	if (PG_ARGISNULL(1))
+	if (PG_ARGISNULL(0) || PG_ARGISNULL(1))
+	{
+		stats.exist++;
 		PG_RETURN_BOOL(false);
+	}
 
 	hdr = fetch_icollection(fcinfo, 0);
+	if (hdr->head == NULL)
+	{
+		stats.exist++;
+		PG_RETURN_BOOL(false);
+	}
+
+	pgstat_report_wait_start(collection_we_exist);
+
 	key = PG_GETARG_INT64(1);
 
 	ICOLLECTION_HASH_FIND(hdr->head, &key, item);
+
+	stats.exist++;
+	pgstat_report_wait_end();
 
 	PG_RETURN_BOOL(item != NULL);
 }
@@ -201,9 +248,12 @@ icollection_count(PG_FUNCTION_ARGS)
 {
 	ICollectionHeader *hdr;
 
+	if (PG_ARGISNULL(0))
+		return 0;
+
 	hdr = fetch_icollection(fcinfo, 0);
 
-	PG_RETURN_INT32(HASH_COUNT(hdr->head));
+	PG_RETURN_INT32(collection_count_common((CollectionHeaderCommon *) hdr));
 }
 
 /*
@@ -217,15 +267,27 @@ icollection_delete(PG_FUNCTION_ARGS)
 	int64		key;
 	icollection *item;
 
+	if (PG_ARGISNULL(1))
+		ereport(ERROR,
+				(errcode(ERRCODE_DATATYPE_MISMATCH),
+				 errmsg("key must not be null")));
+
 	hdr = fetch_icollection(fcinfo, 0);
-	key = PG_GETARG_INT64(1);
+
+	pgstat_report_wait_start(collection_we_delete);
 
 	if (hdr->head)
 	{
+		key = PG_GETARG_INT64(1);
+
 		ICOLLECTION_HASH_FIND(hdr->head, &key, item);
 
 		if (item == NULL)
+		{
+			stats.delete++;
+			pgstat_report_wait_end();
 			PG_RETURN_DATUM(EOHPGetRWDatum(&hdr->hdr));
+		}
 
 		if (item == hdr->current)
 			hdr->current = item->hh.next;
@@ -238,10 +300,14 @@ icollection_delete(PG_FUNCTION_ARGS)
 
 		if (HASH_COUNT(hdr->head) == 0)
 		{
+			HASH_CLEAR(hh, hdr->head);
 			hdr->head = NULL;
 			hdr->current = NULL;
 		}
 	}
+
+	stats.delete++;
+	pgstat_report_wait_end();
 
 	PG_RETURN_DATUM(EOHPGetRWDatum(&hdr->hdr));
 }
@@ -256,7 +322,7 @@ icollection_first(PG_FUNCTION_ARGS)
 	ICollectionHeader *hdr;
 
 	hdr = fetch_icollection(fcinfo, 0);
-	hdr->current = hdr->head;
+	collection_first_common((CollectionHeaderCommon *) hdr);
 
 	PG_RETURN_DATUM(EOHPGetRWDatum(&hdr->hdr));
 }
@@ -269,18 +335,9 @@ Datum
 icollection_last(PG_FUNCTION_ARGS)
 {
 	ICollectionHeader *hdr;
-	icollection *item;
 
 	hdr = fetch_icollection(fcinfo, 0);
-
-	if (hdr->head != NULL)
-	{
-		for (item = hdr->head; item->hh.next != NULL; item = item->hh.next)
-			;
-		hdr->current = item;
-	}
-	else
-		hdr->current = NULL;
+	collection_last_common((CollectionHeaderCommon *) hdr);
 
 	PG_RETURN_DATUM(EOHPGetRWDatum(&hdr->hdr));
 }
@@ -295,9 +352,7 @@ icollection_next(PG_FUNCTION_ARGS)
 	ICollectionHeader *hdr;
 
 	hdr = fetch_icollection(fcinfo, 0);
-
-	if (hdr->current != NULL)
-		hdr->current = hdr->current->hh.next;
+	collection_next_common((CollectionHeaderCommon *) hdr);
 
 	PG_RETURN_DATUM(EOHPGetRWDatum(&hdr->hdr));
 }
@@ -312,9 +367,7 @@ icollection_prev(PG_FUNCTION_ARGS)
 	ICollectionHeader *hdr;
 
 	hdr = fetch_icollection(fcinfo, 0);
-
-	if (hdr->current != NULL)
-		hdr->current = hdr->current->hh.prev;
+	collection_prev_common((CollectionHeaderCommon *) hdr);
 
 	PG_RETURN_DATUM(EOHPGetRWDatum(&hdr->hdr));
 }
@@ -344,19 +397,26 @@ Datum
 icollection_value(PG_FUNCTION_ARGS)
 {
 	ICollectionHeader *hdr;
-	Oid			outfuncoid;
-	bool		typisvarlena;
-	char	   *value_str;
+	Datum		value;
+	Oid			rettype;
 
 	hdr = fetch_icollection(fcinfo, 0);
 
 	if (hdr->current == NULL || hdr->current->isnull)
 		PG_RETURN_NULL();
 
-	getTypeOutputInfo(hdr->value_type, &outfuncoid, &typisvarlena);
-	value_str = DatumGetCString(OidFunctionCall1(outfuncoid, hdr->current->value));
+	pgstat_report_wait_start(collection_we_value);
 
-	PG_RETURN_TEXT_P(cstring_to_text(value_str));
+	get_call_result_type(fcinfo, &rettype, NULL);
+	value = collection_coerce_value(hdr->current->value,
+									hdr->value_type,
+									hdr->value_byval,
+									hdr->value_type_len,
+									rettype);
+
+	pgstat_report_wait_end();
+
+	PG_RETURN_DATUM(value);
 }
 
 /*
@@ -370,7 +430,7 @@ icollection_isnull(PG_FUNCTION_ARGS)
 
 	hdr = fetch_icollection(fcinfo, 0);
 
-	PG_RETURN_BOOL(hdr->current == NULL);
+	PG_RETURN_BOOL(collection_isnull_common((CollectionHeaderCommon *) hdr));
 }
 
 /*
@@ -384,11 +444,16 @@ icollection_sort(PG_FUNCTION_ARGS)
 
 	hdr = fetch_icollection(fcinfo, 0);
 
+	pgstat_report_wait_start(collection_we_sort);
+
 	if (hdr->head)
 	{
 		HASH_SRT(hh, hdr->head, icollection_by_key);
 		hdr->current = hdr->head;
 	}
+
+	stats.sort++;
+	pgstat_report_wait_end();
 
 	PG_RETURN_DATUM(EOHPGetRWDatum(&hdr->hdr));
 }
@@ -404,6 +469,8 @@ icollection_copy(PG_FUNCTION_ARGS)
 	ICollectionHeader *copyhdr;
 
 	hdr = fetch_icollection(fcinfo, 0);
+
+	pgstat_report_wait_start(collection_we_copy);
 
 	if (hdr->head)
 	{
@@ -431,16 +498,21 @@ icollection_copy(PG_FUNCTION_ARGS)
 			ICOLLECTION_HASH_REPLACE(copyhdr->head, key, item, replaced_item);
 			if (replaced_item)
 				pfree(replaced_item);
+
+			if (!copyhdr->current)
+				copyhdr->current = copyhdr->head;
 		}
 
-		copyhdr->current = copyhdr->head;
-
 		MemoryContextSwitchTo(oldcxt);
-	}
-	else
-		copyhdr = construct_empty_icollection(CurrentMemoryContext);
 
-	PG_RETURN_DATUM(EOHPGetRWDatum(&copyhdr->hdr));
+		pgstat_report_wait_end();
+
+		PG_RETURN_DATUM(EOHPGetRWDatum(&copyhdr->hdr));
+	}
+
+	pgstat_report_wait_end();
+
+	PG_RETURN_NULL();
 }
 
 /*
@@ -451,10 +523,15 @@ Datum
 icollection_value_type(PG_FUNCTION_ARGS)
 {
 	ICollectionHeader *hdr;
+	Datum		result;
 
 	hdr = fetch_icollection(fcinfo, 0);
+	result = collection_value_type_common((CollectionHeaderCommon *) hdr);
 
-	PG_RETURN_OID(hdr->value_type);
+	if (result == (Datum) 0)
+		PG_RETURN_NULL();
+
+	PG_RETURN_DATUM(result);
 }
 
 /*
@@ -471,6 +548,39 @@ icollection_by_key(const struct icollection *a, const struct icollection *b)
 	return 0;
 }
 
+/* SRF callbacks for icollection */
+static Datum
+icol_srf_get_key(void *cur)
+{
+	return Int64GetDatum(((icollection *) cur)->key);
+}
+
+static Datum
+icol_srf_get_value(void *cur)
+{
+	return ((icollection *) cur)->value;
+}
+
+static bool
+icol_srf_get_isnull(void *cur)
+{
+	return ((icollection *) cur)->isnull;
+}
+
+static void *
+icol_srf_get_next(void *cur)
+{
+	return ((icollection *) cur)->hh.next;
+}
+
+static CollectionSRFContext icol_srf_tmpl =
+{
+	.get_key = icol_srf_get_key,
+		.get_value = icol_srf_get_value,
+		.get_isnull = icol_srf_get_isnull,
+		.get_next = icol_srf_get_next,
+};
+
 /*
  * icollection_keys_to_table
  *		Return all keys as a table
@@ -478,42 +588,18 @@ icollection_by_key(const struct icollection *a, const struct icollection *b)
 Datum
 icollection_keys_to_table(PG_FUNCTION_ARGS)
 {
-	typedef struct
-	{
-		icollection *cur;
-	} keys_fctx;
-
-	FuncCallContext *funcctx;
-	keys_fctx *fctx;
 	ICollectionHeader *hdr;
-	MemoryContext oldcontext;
+	CollectionSRFContext tmpl;
 
 	if (SRF_IS_FIRSTCALL())
 	{
-		funcctx = SRF_FIRSTCALL_INIT();
-		oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
-
-		fctx = (keys_fctx *) palloc(sizeof(keys_fctx));
 		hdr = fetch_icollection(fcinfo, 0);
-		fctx->cur = hdr->head;
-		funcctx->user_fctx = fctx;
-
-		MemoryContextSwitchTo(oldcontext);
+		tmpl = icol_srf_tmpl;
+		tmpl.eoh = &hdr->hdr;
+		return collection_srf_keys_to_table(fcinfo, hdr->head, &tmpl);
 	}
 
-	funcctx = SRF_PERCALL_SETUP();
-	fctx = funcctx->user_fctx;
-
-	if (fctx->cur != NULL)
-	{
-		Datum value = Int64GetDatum(fctx->cur->key);
-		fctx->cur = fctx->cur->hh.next;
-		SRF_RETURN_NEXT(funcctx, value);
-	}
-	else
-	{
-		SRF_RETURN_DONE(funcctx);
-	}
+	return collection_srf_keys_to_table(fcinfo, NULL, NULL);
 }
 
 /*
@@ -523,58 +609,21 @@ icollection_keys_to_table(PG_FUNCTION_ARGS)
 Datum
 icollection_values_to_table(PG_FUNCTION_ARGS)
 {
-	typedef struct
-	{
-		icollection *cur;
-		ICollectionHeader *hdr;
-	} values_fctx;
-
-	FuncCallContext *funcctx;
-	values_fctx *fctx;
 	ICollectionHeader *hdr;
-	MemoryContext oldcontext;
+	CollectionSRFContext tmpl;
 
 	if (SRF_IS_FIRSTCALL())
 	{
-		funcctx = SRF_FIRSTCALL_INIT();
-		oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
-
-		fctx = (values_fctx *) palloc(sizeof(values_fctx));
 		hdr = fetch_icollection(fcinfo, 0);
-		fctx->hdr = hdr;
-		fctx->cur = hdr->head;
-		funcctx->user_fctx = fctx;
-
-		MemoryContextSwitchTo(oldcontext);
+		tmpl = icol_srf_tmpl;
+		tmpl.eoh = &hdr->hdr;
+		tmpl.typelen = hdr->value_type_len;
+		tmpl.typebyval = hdr->value_byval;
+		return collection_srf_values_to_table(fcinfo, hdr->head,
+											  hdr->value_type, &tmpl);
 	}
 
-	funcctx = SRF_PERCALL_SETUP();
-	fctx = funcctx->user_fctx;
-
-	if (fctx->cur != NULL)
-	{
-		Datum value;
-		Oid outfuncoid;
-		bool typisvarlena;
-		char *value_str;
-
-		if (fctx->cur->isnull)
-		{
-			fctx->cur = fctx->cur->hh.next;
-			SRF_RETURN_NEXT_NULL(funcctx);
-		}
-
-		getTypeOutputInfo(fctx->hdr->value_type, &outfuncoid, &typisvarlena);
-		value_str = DatumGetCString(OidFunctionCall1(outfuncoid, fctx->cur->value));
-		value = CStringGetTextDatum(value_str);
-
-		fctx->cur = fctx->cur->hh.next;
-		SRF_RETURN_NEXT(funcctx, value);
-	}
-	else
-	{
-		SRF_RETURN_DONE(funcctx);
-	}
+	return collection_srf_values_to_table(fcinfo, NULL, InvalidOid, NULL);
 }
 
 /*
@@ -584,82 +633,21 @@ icollection_values_to_table(PG_FUNCTION_ARGS)
 Datum
 icollection_to_table(PG_FUNCTION_ARGS)
 {
-	typedef struct
-	{
-		icollection *cur;
-		ICollectionHeader *hdr;
-	} to_table_fctx;
-
-	FuncCallContext *funcctx;
-	to_table_fctx *fctx;
 	ICollectionHeader *hdr;
-	MemoryContext oldcontext;
+	CollectionSRFContext tmpl;
 
 	if (SRF_IS_FIRSTCALL())
 	{
-		TupleDesc tupdesc;
-
-		funcctx = SRF_FIRSTCALL_INIT();
-		oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
-
-		fctx = (to_table_fctx *) palloc(sizeof(to_table_fctx));
 		hdr = fetch_icollection(fcinfo, 0);
-		fctx->hdr = hdr;
-		fctx->cur = hdr->head;
-		funcctx->user_fctx = fctx;
-
-		/* Build tuple descriptor */
-		if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
-			ereport(ERROR,
-					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					 errmsg("function returning record called in context that cannot accept type record")));
-
-		funcctx->tuple_desc = BlessTupleDesc(tupdesc);
-
-		MemoryContextSwitchTo(oldcontext);
+		tmpl = icol_srf_tmpl;
+		tmpl.eoh = &hdr->hdr;
+		tmpl.typelen = hdr->value_type_len;
+		tmpl.typebyval = hdr->value_byval;
+		return collection_srf_to_table(fcinfo, hdr->head,
+									   hdr->value_type, &tmpl);
 	}
 
-	funcctx = SRF_PERCALL_SETUP();
-	fctx = funcctx->user_fctx;
-
-	if (fctx->cur != NULL)
-	{
-		Datum values[2];
-		bool nulls[2];
-		HeapTuple tuple;
-		Datum result;
-		Oid outfuncoid;
-		bool typisvarlena;
-		char *value_str;
-
-		/* Key */
-		values[0] = Int64GetDatum(fctx->cur->key);
-		nulls[0] = false;
-
-		/* Value */
-		if (fctx->cur->isnull)
-		{
-			values[1] = (Datum) 0;
-			nulls[1] = true;
-		}
-		else
-		{
-			getTypeOutputInfo(fctx->hdr->value_type, &outfuncoid, &typisvarlena);
-			value_str = DatumGetCString(OidFunctionCall1(outfuncoid, fctx->cur->value));
-			values[1] = CStringGetTextDatum(value_str);
-			nulls[1] = false;
-		}
-
-		tuple = heap_form_tuple(funcctx->tuple_desc, values, nulls);
-		result = HeapTupleGetDatum(tuple);
-
-		fctx->cur = fctx->cur->hh.next;
-		SRF_RETURN_NEXT(funcctx, result);
-	}
-	else
-	{
-		SRF_RETURN_DONE(funcctx);
-	}
+	return collection_srf_to_table(fcinfo, NULL, InvalidOid, NULL);
 }
 
 Datum

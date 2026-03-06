@@ -1,0 +1,91 @@
+-- Table storage tests for icollection (mirrors collection select.sql)
+CREATE TABLE select_icollection(col_icollection icollection);
+INSERT INTO select_icollection VALUES('{"value_type":"pg_catalog.text","entries":{"1":"Washington", "2":"London"}}');
+INSERT INTO select_icollection VALUES('{"value_type":"pg_catalog.text","entries":{"3":"New Delhi"}}');
+INSERT INTO select_icollection VALUES('{"value_type":"pg_catalog.text","entries":{"4":"Beijing"}}');
+INSERT INTO select_icollection VALUES('{"value_type":"pg_catalog.text","entries":{"5":"Ottawa"}}');
+SELECT * FROM select_icollection;
+      col_icollection       
+----------------------------
+ {1: Washington, 2: London}
+ {3: New Delhi}
+ {4: Beijing}
+ {5: Ottawa}
+(4 rows)
+
+SELECT sort(col_icollection) FROM select_icollection;
+            sort            
+----------------------------
+ {1: Washington, 2: London}
+ {3: New Delhi}
+ {4: Beijing}
+ {5: Ottawa}
+(4 rows)
+
+SELECT key(col_icollection) FROM select_icollection;
+ key 
+-----
+   1
+   3
+   4
+   5
+(4 rows)
+
+SELECT value(col_icollection) FROM select_icollection;
+   value    
+------------
+ Washington
+ New Delhi
+ Beijing
+ Ottawa
+(4 rows)
+
+SELECT value_type(col_icollection) FROM select_icollection;
+ value_type 
+------------
+ text
+ text
+ text
+ text
+(4 rows)
+
+SELECT to_table(col_icollection) FROM select_icollection;
+    to_table     
+-----------------
+ (1,Washington)
+ (2,London)
+ (3,"New Delhi")
+ (4,Beijing)
+ (5,Ottawa)
+(5 rows)
+
+SELECT keys_to_table(col_icollection) FROM select_icollection;
+ keys_to_table 
+---------------
+             1
+             2
+             3
+             4
+             5
+(5 rows)
+
+SELECT values_to_table(col_icollection) FROM select_icollection;
+ values_to_table 
+-----------------
+ Washington
+ London
+ New Delhi
+ Beijing
+ Ottawa
+(5 rows)
+
+SELECT COUNT(col_icollection) FROM select_icollection;
+ count 
+-------
+     2
+     1
+     1
+     1
+(4 rows)
+
+DROP TABLE select_icollection;

@@ -29,13 +29,6 @@
 
 #include "collection.h"
 
-typedef struct ICollectionSubWorkspace
-{
-	Oid			value_type;
-	int16		value_type_len;
-	bool		value_byval;
-}			ICollectionSubWorkspace;
-
 PG_FUNCTION_INFO_V1(icollection_subscript_handler);
 
 static Oid	icollection_oid;
@@ -45,10 +38,10 @@ static Oid	icollection_oid;
  */
 static void
 icollection_subscript_transform(SubscriptingRef *sbsref,
-							   List *indirection,
-							   ParseState *pstate,
-							   bool isSlice,
-							   bool isAssignment)
+								List *indirection,
+								ParseState *pstate,
+								bool isSlice,
+								bool isAssignment)
 {
 	A_Indices  *ai;
 	Node	   *subexpr;
@@ -94,11 +87,11 @@ icollection_subscript_transform(SubscriptingRef *sbsref,
  */
 static void
 icollection_subscript_fetch(ExprState *state,
-						   ExprEvalStep *op,
-						   ExprContext *econtext)
+							ExprEvalStep *op,
+							ExprContext *econtext)
 {
 	SubscriptingRefState *sbsrefstate = op->d.sbsref.state;
-	ICollectionSubWorkspace *workspace = (ICollectionSubWorkspace *) sbsrefstate->workspace;
+	CollectionSubWorkspace *workspace = (CollectionSubWorkspace *) sbsrefstate->workspace;
 	ICollectionHeader *icolhdr;
 	icollection *item;
 	int64		key;
@@ -120,7 +113,7 @@ icollection_subscript_fetch(ExprState *state,
 
 	key = DatumGetInt64(sbsrefstate->upperindex[0]);
 
-	pgstat_report_wait_start(icollection_we_fetch);
+	pgstat_report_wait_start(collection_we_fetch);
 
 	ICOLLECTION_HASH_FIND(icolhdr->head, &key, item);
 
@@ -135,32 +128,10 @@ icollection_subscript_fetch(ExprState *state,
 	else if (item->isnull)
 		value = (Datum) 0;
 	else
-	{
-		if (can_coerce_type(1, &workspace->value_type, &icolhdr->value_type, COERCION_IMPLICIT))
-			value = datumCopy(item->value, icolhdr->value_byval, icolhdr->value_type_len);
-		else
-		{
-			if (workspace->value_type == TEXTOID)
-			{
-				bool		typisvarlena;
-				Oid			outfuncoid;
-
-				getTypeOutputInfo(icolhdr->value_type, &outfuncoid, &typisvarlena);
-				value = CStringGetTextDatum(DatumGetCString(OidFunctionCall1(outfuncoid, item->value)));
-			}
-			else
-			{
-				stats.find++;
-				pgstat_report_wait_end();
-				ereport(ERROR,
-						(errcode(ERRCODE_DATATYPE_MISMATCH),
-						 errmsg("Incompatible value data type"),
-						 errdetail("Expecting %s, but received %s",
-								   format_type_extended(workspace->value_type, -1, 0),
-								   format_type_extended(icolhdr->value_type, -1, 0))));
-			}
-		}
-	}
+		value = collection_coerce_value(item->value, icolhdr->value_type,
+										icolhdr->value_byval,
+										icolhdr->value_type_len,
+										workspace->value_type);
 
 	if (value == (Datum) 0)
 		*op->resnull = true;
@@ -178,11 +149,11 @@ icollection_subscript_fetch(ExprState *state,
  */
 static void
 icollection_subscript_assign(ExprState *state,
-							ExprEvalStep *op,
-							ExprContext *econtext)
+							 ExprEvalStep *op,
+							 ExprContext *econtext)
 {
 	SubscriptingRefState *sbsrefstate = op->d.sbsref.state;
-	ICollectionSubWorkspace *workspace = (ICollectionSubWorkspace *) sbsrefstate->workspace;
+	CollectionSubWorkspace *workspace = (CollectionSubWorkspace *) sbsrefstate->workspace;
 	MemoryContext oldcxt;
 	ICollectionHeader *icolhdr;
 	icollection *item;
@@ -218,7 +189,7 @@ icollection_subscript_assign(ExprState *state,
 		icolhdr->value_byval = workspace->value_byval;
 	}
 
-	pgstat_report_wait_start(icollection_we_assign);
+	pgstat_report_wait_start(collection_we_assign);
 
 	if (!can_coerce_type(1, &workspace->value_type, &icolhdr->value_type, COERCION_IMPLICIT))
 	{
@@ -272,38 +243,13 @@ icollection_subscript_assign(ExprState *state,
  */
 static void
 icollection_exec_setup(const SubscriptingRef *sbsref,
-					  SubscriptingRefState *sbsrefstate,
-					  SubscriptExecSteps *methods)
+					   SubscriptingRefState *sbsrefstate,
+					   SubscriptExecSteps *methods)
 {
-	ICollectionSubWorkspace *workspace;
-
-	Assert(sbsrefstate->numlower == 0);
-	Assert(sbsrefstate->numupper == 1);
-
-	workspace = (ICollectionSubWorkspace *) palloc(sizeof(ICollectionSubWorkspace));
-	sbsrefstate->workspace = workspace;
-
-	if (sbsref->refrestype == icollection_oid && sbsref->reftypmod != -1)
-	{
-		workspace->value_type = sbsref->reftypmod;
-		get_typlenbyval(sbsref->reftypmod, &workspace->value_type_len, &workspace->value_byval);
-	}
-	else if (sbsref->refrestype != InvalidOid && sbsref->refrestype != icollection_oid && sbsref->reftypmod == -1)
-	{
-		workspace->value_type = sbsref->refrestype;
-		get_typlenbyval(sbsref->refrestype, &workspace->value_type_len, &workspace->value_byval);
-	}
-	else
-	{
-		workspace->value_type = TEXTOID;
-		workspace->value_type_len = -1;
-		workspace->value_byval = false;
-	}
-
-	methods->sbs_check_subscripts = NULL;
-	methods->sbs_fetch = icollection_subscript_fetch;
-	methods->sbs_assign = icollection_subscript_assign;
-	methods->sbs_fetch_old = NULL;
+	collection_exec_setup_common(sbsref, sbsrefstate, methods,
+								 icollection_oid,
+								 icollection_subscript_fetch,
+								 icollection_subscript_assign);
 }
 
 /*

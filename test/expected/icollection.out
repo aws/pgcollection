@@ -77,9 +77,9 @@ BEGIN
 END
 $$;
 NOTICE:  Test 6
-ERROR:  could not determine polymorphic type because input has type unknown
-CONTEXT:  PL/pgSQL assignment "ic := add(ic, 1, 'Hello World')"
-PL/pgSQL function inline_code_block line 7 at assignment
+NOTICE:  count: 2
+NOTICE:  count: 4
+NOTICE:  current key: 1
 -- Test empty icollection creation
 SELECT '{}'::icollection;
 ERROR:  unexpected object end
@@ -435,4 +435,345 @@ BEGIN
     ic[2] := 200;
     RAISE NOTICE 'value_type: %', value_type(ic);
 END $$;
-NOTICE:  value_type: 23
+NOTICE:  value_type: integer
+-- Test polymorphic value
+DO $$
+DECLARE
+  ic   icollection;
+BEGIN
+  RAISE NOTICE 'Test 7';
+  ic := add(ic, 1, 'Hello World'::text);
+  RAISE NOTICE 'value: %', value(ic, null::varchar);
+END
+$$;
+NOTICE:  Test 7
+NOTICE:  value: Hello World
+DO $$
+DECLARE
+  ic   icollection;
+BEGIN
+  RAISE NOTICE 'Test 8';
+  ic := add(ic, 1, '1999-12-31'::date);
+  RAISE NOTICE 'value: %', value(ic, null::date);
+END
+$$;
+NOTICE:  Test 8
+NOTICE:  value: 12-31-1999
+-- Test polymorphic find
+DO $$
+DECLARE
+  ic   icollection;
+BEGIN
+  RAISE NOTICE 'Test 9';
+  ic := add(ic, 1, 'Hello World'::text);
+  ic := add(ic, 2, 'Hello All'::text);
+  RAISE NOTICE 'find: %', find(ic, 1, null::text);
+END
+$$;
+NOTICE:  Test 9
+NOTICE:  find: Hello World
+DO $$
+DECLARE
+  ic   icollection;
+BEGIN
+  RAISE NOTICE 'Test 10';
+  ic := add(ic, 1, '1999-12-31'::date);
+  ic := add(ic, 2, '2000-01-01'::date);
+  RAISE NOTICE 'find: %', find(ic, 1, null::text);
+END
+$$;
+NOTICE:  Test 10
+NOTICE:  find: 12-31-1999
+-- Test delete then re-add
+DO $$
+DECLARE
+  ic   icollection;
+BEGIN
+  RAISE NOTICE 'Test 11';
+  ic := add(ic, 1, 'Hello World'::text);
+  ic := add(ic, 2, 'Hello All'::text);
+  ic := delete(ic, 1);
+  ic := delete(ic, 2);
+  ic := add(ic, 1, 'Hello'::text);
+  ic := add(ic, 2, 'World'::text);
+  RAISE NOTICE 'count: %', count(ic);
+END
+$$;
+NOTICE:  Test 11
+NOTICE:  count: 2
+-- Test add with NULL value
+DO $$
+DECLARE
+  ic   icollection;
+BEGIN
+  RAISE NOTICE 'Test 12';
+  ic := add(ic, 1, 'Hello World'::text);
+  ic := add(ic, 2, null);
+  RAISE NOTICE 'count: %', count(ic);
+END
+$$;
+NOTICE:  Test 12
+NOTICE:  count: 2
+-- Test exist with NULL key
+DO $$
+DECLARE
+  ic   icollection;
+BEGIN
+  RAISE NOTICE 'Test 13';
+  ic := add(ic, 1, 'Hello World'::text);
+  ic := add(ic, 2, 'Hello All'::text);
+
+  RAISE NOTICE '2 exist: %', exist(ic, 2);
+  RAISE NOTICE '999 exist: %', exist(ic, 999);
+  RAISE NOTICE '<null> exist: %', exist(ic, null);
+END
+$$;
+NOTICE:  Test 13
+NOTICE:  2 exist: t
+NOTICE:  999 exist: f
+NOTICE:  <null> exist: f
+-- Test find on uninitialized, empty, non-empty with missing key
+DO $$
+DECLARE
+  c1 icollection('text');
+BEGIN
+  RAISE NOTICE 'Test 14';
+  RAISE NOTICE 'find(c1): %', find(c1, 2, NULL::TEXT);
+END $$;
+NOTICE:  Test 14
+ERROR:  key not found
+CONTEXT:  PL/pgSQL function inline_code_block line 6 at RAISE
+DO $$
+DECLARE
+  c3 icollection('text');
+BEGIN
+  RAISE NOTICE 'Test 15';
+  c3 := add(c3, 1, 'Hello World');
+  RAISE NOTICE 'find(c3): %', find(c3, 2, NULL::TEXT);
+END $$;
+NOTICE:  Test 15
+ERROR:  key "2" not found
+CONTEXT:  PL/pgSQL function inline_code_block line 7 at RAISE
+-- Test count on uninitialized and empty
+DO $$
+DECLARE
+  c1 icollection('text');
+  c3 icollection('text');
+BEGIN
+  RAISE NOTICE 'Test 16';
+
+  RAISE NOTICE 'count(c1): %', count(c1);
+
+  c3 := add(c3, 1, 'Hello World');
+  RAISE NOTICE 'count(c3): %', count(c3);
+END
+$$;
+NOTICE:  Test 16
+NOTICE:  count(c1): 0
+NOTICE:  count(c3): 1
+-- Test duplicate key replacement
+DO $$
+DECLARE
+  val1 icollection('int4');
+BEGIN
+  RAISE NOTICE 'Test 17';
+  val1 := add(val1, 1, 1::int4);
+  val1 := add(val1, 1, 2::int4);
+END;
+$$;
+NOTICE:  Test 17
+-- Test value_type
+DO $$
+DECLARE
+  ic  icollection;
+BEGIN
+  RAISE NOTICE 'Test 18';
+  ic := add(ic, 1, 111::bigint);
+  RAISE NOTICE 'The type is %', value_type(ic);
+END
+$$;
+NOTICE:  Test 18
+NOTICE:  The type is bigint
+-- Test mixed type error
+DO $$
+DECLARE
+  ic  icollection;
+BEGIN
+  RAISE NOTICE 'Test 19';
+  ic := add(ic, 1, 111::bigint);
+  ic := add(ic, 2, 'hello'::text);
+END
+$$;
+NOTICE:  Test 19
+ERROR:  incompatible value data type
+DETAIL:  expecting bigint, but received text
+CONTEXT:  PL/pgSQL function inline_code_block line 7 at assignment
+-- Test polymorphic value with bigint
+DO $$
+DECLARE
+  ic  icollection;
+BEGIN
+  RAISE NOTICE 'Test 20';
+  ic := add(ic, 1, 111::bigint);
+  ic := add(ic, 2, 222::bigint);
+  RAISE NOTICE 'The current val is %', value(ic, null::bigint);
+  RAISE NOTICE 'The current value type is %', pg_typeof(value(ic, null::bigint));
+END
+$$;
+NOTICE:  Test 20
+NOTICE:  The current val is 111
+NOTICE:  The current value type is bigint
+-- Test typmod with numeric
+DO $$
+DECLARE
+  ic icollection('numeric(8,2)');
+BEGIN
+  RAISE NOTICE 'Test 21';
+  ic[1] := 3.14::numeric;
+END $$;
+ERROR:  invalid ICOLLECTION type modifier
+LINE 3:   ic icollection('numeric(8,2)');
+             ^
+DETAIL:  the type cannot have a type modifier
+-- Test JSON output
+DO $$
+DECLARE
+  ic   icollection('text');
+BEGIN
+  RAISE NOTICE 'Test 22';
+  ic := add(ic, 1, 'Hello World');
+  ic := add(ic, 2, 'Hello All');
+
+  RAISE NOTICE 'json: %', to_json(ic);
+END
+$$;
+NOTICE:  Test 22
+NOTICE:  json: "{1: Hello World, 2: Hello All}"
+DO $$
+DECLARE
+  ic   icollection('int');
+BEGIN
+  RAISE NOTICE 'Test 23';
+  ic := add(ic, 1, 42);
+  ic := add(ic, 2, 84);
+
+  RAISE NOTICE 'json: %', to_json(ic);
+END
+$$;
+NOTICE:  Test 23
+NOTICE:  json: "{1: 42, 2: 84}"
+-- Test table storage
+CREATE TABLE icollections_test (c1 int, c2 icollection);
+INSERT INTO icollections_test VALUES (1, add(null::icollection, 1, 'Hello World'));
+INSERT INTO icollections_test VALUES (2, add(null::icollection, 2, 'Hello ALL'));
+SELECT * FROM icollections_test ORDER BY c1;
+ c1 |        c2        
+----+------------------
+  1 | {1: Hello World}
+  2 | {2: Hello ALL}
+(2 rows)
+
+DROP TABLE icollections_test;
+-- Test stats (icollection shares collection_stats counters)
+SELECT collection_stats_reset();
+ collection_stats_reset 
+------------------------
+ 
+(1 row)
+
+DO $$
+DECLARE
+  ic1 icollection('text');
+  ic2 icollection('text');
+BEGIN
+  RAISE NOTICE 'Test 24';
+  ic1 := add(ic1, 1, 'Hello World');
+  ic1 := add(ic1, 2, 'Hello All');
+
+  ic2 := ic1;
+  ic2 := add(ic2, 3, 'Hi');
+  RAISE NOTICE 'count: ic1(%), ic2(%)', count(ic1), count(ic2);
+END
+$$;
+NOTICE:  Test 24
+NOTICE:  count: ic1(2), ic2(3)
+SELECT * FROM collection_stats;
+ add | context_switch | delete | find | sort | exist 
+-----+----------------+--------+------+------+-------
+   3 |              0 |      0 |    0 |    0 |     0
+(1 row)
+
+-- Test copy semantics
+DO $$
+DECLARE
+  ic1 icollection('text');
+  ic2 icollection('text');
+BEGIN
+  RAISE NOTICE 'Test 25';
+  ic1 := add(ic1, 1, 'Hello World');
+  ic1 := add(ic1, 2, 'Hello All');
+
+  ic2 := copy(ic1);
+  ic2 := add(ic2, 3, 'Hi');
+  RAISE NOTICE 'count: ic1(%), ic2(%)', count(ic1), count(ic2);
+END
+$$;
+NOTICE:  Test 25
+NOTICE:  count: ic1(2), ic2(3)
+-- Test JSON parse errors
+SELECT '{"value_type": "text", "entries": {"1": "Hello World"}'::icollection;
+ERROR:  Invalid format
+LINE 1: SELECT '{"value_type": "text", "entries": {"1": "Hello World...
+               ^
+SELECT '{"value_type": "text", "entry": {"1": "Hello World"}}'::icollection;
+ERROR:  unexpected field: entry
+LINE 1: SELECT '{"value_type": "text", "entry": {"1": "Hello World"}...
+               ^
+SELECT '{"entries": {"1": "Hello World"}}'::icollection;
+   icollection    
+------------------
+ {1: Hello World}
+(1 row)
+
+SELECT '{"entries": {"1": "Hello World"}, "value_type": "text"}'::icollection;
+ERROR:  unexpected field start
+LINE 1: SELECT '{"entries": {"1": "Hello World"}, "value_type": "tex...
+               ^
+SELECT '{"value_type": "text", "entries": {"1": "Hello World", "2": 1}}'::icollection;
+      icollection       
+------------------------
+ {1: Hello World, 2: 1}
+(1 row)
+
+-- Test delete via SQL
+SELECT delete('{"value_type": "pg_catalog.text", "entries": {"1": "A", "2": "B", "3": "C"}}'::icollection, 1);
+    delete    
+--------------
+ {2: B, 3: C}
+(1 row)
+
+-- Test nested icollection
+DO $$
+DECLARE
+  arr_instance icollection('icollection');
+BEGIN
+  RAISE NOTICE 'Test 26';
+
+  arr_instance := add(arr_instance, 1, add(NULL::icollection, 10, 1::int));
+
+  FOR i IN 1..10 LOOP
+    RAISE NOTICE 'Attempt: %', i;
+    arr_instance := add(arr_instance, 1, add(find(arr_instance, 1, NULL::icollection), 20, 1::int));
+  END LOOP;
+END $$;
+NOTICE:  Test 26
+NOTICE:  Attempt: 1
+NOTICE:  Attempt: 2
+NOTICE:  Attempt: 3
+NOTICE:  Attempt: 4
+NOTICE:  Attempt: 5
+NOTICE:  Attempt: 6
+NOTICE:  Attempt: 7
+NOTICE:  Attempt: 8
+NOTICE:  Attempt: 9
+NOTICE:  Attempt: 10

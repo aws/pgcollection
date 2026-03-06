@@ -144,74 +144,16 @@ Datum
 collection_typmodin(PG_FUNCTION_ARGS)
 {
 	ArrayType  *ta = PG_GETARG_ARRAYTYPE_P(0);
-	Datum	   *elem_values;
-	int			n;
-	Oid			typoid = 0;
-	int32		typmod = 0;
 
-	if (ARR_ELEMTYPE(ta) != CSTRINGOID)
-		ereport(ERROR,
-				(errcode(ERRCODE_ARRAY_ELEMENT_ERROR),
-				 errmsg("typmod array must be type cstring[]")));
-
-	if (ARR_NDIM(ta) != 1)
-		ereport(ERROR,
-				(errcode(ERRCODE_ARRAY_SUBSCRIPT_ERROR),
-				 errmsg("typmod array must be one-dimensional")));
-
-	if (array_contains_nulls(ta))
-		ereport(ERROR,
-				(errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
-				 errmsg("typmod array must not contain nulls")));
-
-	deconstruct_array(ta, CSTRINGOID, -2, false, 'c', &elem_values, NULL, &n);
-
-	if (n != 1)
-	{
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("invalid COLLECTION type modifier")));
-		typoid = 0;				/* keep compiler quiet */
-	}
-
-	parseTypeString(DatumGetCString(elem_values[0]), &typoid, &typmod, NULL);
-
-	if (typmod != -1)
-	{
-		/*
-		 * There needs to be special handling for BPCHAR For a CHAR passed in
-		 * without a typemod defined, the typmod is still returned as 5
-		 * intentionally based the historical comment in varchar.c. There also
-		 * needs a check to see if there are parenthesis in the string to
-		 * determine if the passed in string is CHAR or CHAR(1).
-		 *
-		 * In backend/utils/adt/varchar.c:
-		 *
-		 * For largely historical reasons, the typmod is VARHDRSZ plus the
-		 * number of characters; there is enough client-side code that knows
-		 * about that that we'd better not change it.
-		 */
-		if (typoid != BPCHAROID ||
-			(typmod != VARHDRSZ + 1 ||
-			 strpbrk(DatumGetCString(elem_values[0]), "()")))
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					 errmsg("invalid COLLECTION type modifier"),
-					 errdetail("the type cannot have a type modifier")));
-	}
-
-	PG_RETURN_INT32(typoid);
+	PG_RETURN_INT32(collection_typmodin_common(ta, "COLLECTION"));
 }
 
 Datum
 collection_typmodout(PG_FUNCTION_ARGS)
 {
 	Oid			typmod = PG_GETARG_OID(0);
-	char	   *res = (char *) palloc(NAMEDATALEN);
 
-	res = DatumGetCString(DirectFunctionCall1(regtypeout, typmod));
-
-	PG_RETURN_CSTRING(res);
+	PG_RETURN_CSTRING(collection_typmodout_common(typmod));
 }
 
 Datum
@@ -223,29 +165,7 @@ collection_cast(PG_FUNCTION_ARGS)
 	colhdr = fetch_collection(fcinfo, 0);
 
 	pgstat_report_wait_start(collection_we_cast);
-
-	if (typmod > 0 && colhdr->value_type != InvalidOid)
-	{
-		/*
-		 * Check if the cast is into a collection or if it can be coerced to
-		 * the appropriate type
-		 */
-		if (get_fn_expr_argtype(fcinfo->flinfo, 0) != typmod &&
-			!can_coerce_type(1, &colhdr->value_type, &typmod, COERCION_IMPLICIT))
-			ereport(ERROR,
-					(errcode(ERRCODE_DATATYPE_MISMATCH),
-					 errmsg("Incompatible value data type"),
-					 errdetail("Expecting %s, but received %s",
-							   format_type_extended(typmod, -1, 0),
-							   format_type_extended(colhdr->value_type, -1, 0))));
-	}
-	else if (typmod > 0 && colhdr->value_type == InvalidOid)
-	{
-		/* For empty collections with InvalidOid, set the target type */
-		colhdr->value_type = (Oid) typmod;
-		get_typlenbyval(colhdr->value_type, &colhdr->value_type_len, &colhdr->value_byval);
-	}
-
+	collection_cast_common((CollectionHeaderCommon *) colhdr, typmod, fcinfo);
 	pgstat_report_wait_end();
 
 	PG_RETURN_DATUM(EOHPGetRWDatum(&colhdr->hdr));
