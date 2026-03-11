@@ -559,14 +559,19 @@ capitals.DELETE('Japan');
 capitals := delete(capitals, 'Japan');
 ```
 
-### No bulk DELETE
+### Bulk DELETE
 
-Oracle's `.DELETE` with no arguments removes all elements. pgcollection has no equivalent — delete keys individually in a loop, or reassign the variable to `NULL`:
+Oracle's `.DELETE` with no arguments removes all elements. pgcollection supports the same operation:
 
 ```sql
--- Remove all elements
-capitals := NULL;
+-- Oracle
+capitals.DELETE;
+
+-- pgcollection
+capitals := delete(capitals);
 ```
+
+Both preserve the variable's type — subsequent adds still enforce the original value type.
 
 ### Subscript syntax
 
@@ -609,7 +614,7 @@ Both Oracle and pgcollection raise `NO_DATA_FOUND` when accessing a non-existent
 | `v.COUNT` | `count(v)` | `count(v)` |
 | `v.EXISTS('key')` | `exist(v, 'key')` | `exist(v, 42)` |
 | `v.DELETE('key')` | `v := delete(v, 'key')` | `v := delete(v, 42)` |
-| `v.DELETE` (all) | — (delete keys in a loop) | — (delete keys in a loop) |
+| `v.DELETE` (all) | `v := delete(v)` | `v := delete(v)` |
 | `v.FIRST` | `first_key(v)` | `first_key(v)` |
 | `v.LAST` | `last_key(v)` | `last_key(v)` |
 | `v.NEXT(k)` | `next_key(v, k)` | `next_key(v, k)` |

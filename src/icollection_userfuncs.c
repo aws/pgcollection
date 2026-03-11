@@ -34,6 +34,7 @@ PG_FUNCTION_INFO_V1(icollection_find);
 PG_FUNCTION_INFO_V1(icollection_exist);
 PG_FUNCTION_INFO_V1(icollection_count);
 PG_FUNCTION_INFO_V1(icollection_delete);
+PG_FUNCTION_INFO_V1(icollection_delete_all);
 PG_FUNCTION_INFO_V1(icollection_first);
 PG_FUNCTION_INFO_V1(icollection_last);
 PG_FUNCTION_INFO_V1(icollection_next);
@@ -274,6 +275,39 @@ icollection_delete(PG_FUNCTION_ARGS)
 			hdr->current = NULL;
 		}
 	}
+
+	stats.delete++;
+	pgstat_report_wait_end();
+
+	PG_RETURN_DATUM(EOHPGetRWDatum(&hdr->hdr));
+}
+
+/*
+ * icollection_delete_all
+ *		Remove all entries, preserving the value type
+ */
+Datum
+icollection_delete_all(PG_FUNCTION_ARGS)
+{
+	ICollectionHeader *hdr;
+	icollection *item;
+	icollection *tmp;
+
+	hdr = fetch_icollection(fcinfo, 0);
+
+	pgstat_report_wait_start(collection_we_delete);
+
+	HASH_ITER(hh, hdr->head, item, tmp)
+	{
+		ICOLLECTION_HASH_DELETE(hdr->head, item);
+		if (!item->isnull && item->value && !hdr->value_byval)
+			pfree(DatumGetPointer(item->value));
+		pfree(item);
+	}
+
+	hdr->head = NULL;
+	hdr->current = NULL;
+	hdr->flat_size = 0;
 
 	stats.delete++;
 	pgstat_report_wait_end();

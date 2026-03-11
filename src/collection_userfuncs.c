@@ -40,6 +40,7 @@ PG_FUNCTION_INFO_V1(collection_count);
 PG_FUNCTION_INFO_V1(collection_find);
 PG_FUNCTION_INFO_V1(collection_exist);
 PG_FUNCTION_INFO_V1(collection_delete);
+PG_FUNCTION_INFO_V1(collection_delete_all);
 PG_FUNCTION_INFO_V1(collection_sort);
 PG_FUNCTION_INFO_V1(collection_copy);
 PG_FUNCTION_INFO_V1(collection_key);
@@ -271,6 +272,37 @@ collection_delete(PG_FUNCTION_ARGS)
 			colhdr->current = NULL;
 		}
 	}
+
+	stats.delete++;
+	pgstat_report_wait_end();
+
+	PG_RETURN_DATUM(EOHPGetRWDatum(&colhdr->hdr));
+}
+
+Datum
+collection_delete_all(PG_FUNCTION_ARGS)
+{
+	CollectionHeader *colhdr;
+	collection *item;
+	collection *tmp;
+
+	colhdr = fetch_collection(fcinfo, 0);
+
+	pgstat_report_wait_start(collection_we_delete);
+
+	HASH_ITER(hh, colhdr->head, item, tmp)
+	{
+		HASH_DEL(colhdr->head, item);
+		if (item->key)
+			pfree(item->key);
+		if (!item->isnull && item->value && !colhdr->value_byval)
+			pfree(DatumGetPointer(item->value));
+		pfree(item);
+	}
+
+	colhdr->head = NULL;
+	colhdr->current = NULL;
+	colhdr->flat_size = 0;
 
 	stats.delete++;
 	pgstat_report_wait_end();

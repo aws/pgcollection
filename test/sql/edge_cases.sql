@@ -777,3 +777,64 @@ BEGIN
   ASSERT NOT exist(ic, -100), 'deleted negative key gone';
 END;
 $$;
+
+-- ============================================================
+-- Test 28: delete() with no args — NULL values in collection
+-- ============================================================
+DO
+$$
+DECLARE
+  c collection;
+BEGIN
+  c['a'] := 'value';
+  c['b'] := NULL;
+  c['c'] := 'other';
+  ASSERT count(c) = 3, 'pre-delete with nulls';
+  c := delete(c);
+  ASSERT count(c) = 0, 'delete all with null values';
+END;
+$$;
+
+-- ============================================================
+-- Test 29: delete() with no args — empty and NULL collection
+-- ============================================================
+DO
+$$
+DECLARE
+  c collection;
+BEGIN
+  -- delete all on NULL (creates empty, deletes nothing)
+  c := delete(c);
+  ASSERT count(c) = 0, 'delete all on null';
+
+  -- add, delete single to empty, then delete all on empty
+  c['a'] := '1';
+  c := delete(c, 'a');
+  ASSERT count(c) = 0, 'empty after single delete';
+  c := delete(c);
+  ASSERT count(c) = 0, 'delete all on already empty';
+END;
+$$;
+
+-- ============================================================
+-- Test 30: delete() with no args — rapid delete/refill cycle
+-- ============================================================
+DO
+$$
+DECLARE
+  ic icollection('int4');
+  i  int;
+BEGIN
+  FOR cycle IN 1..5 LOOP
+    FOR i IN 1..100 LOOP
+      ic[i] := i * cycle;
+    END LOOP;
+    ASSERT count(ic) = 100, 'cycle ' || cycle || ' fill';
+    ic := delete(ic);
+    ASSERT count(ic) = 0, 'cycle ' || cycle || ' empty';
+  END LOOP;
+  -- final refill
+  ic[1] := 999;
+  ASSERT find(ic, 1, NULL::int4) = 999, 'final refill';
+END;
+$$;

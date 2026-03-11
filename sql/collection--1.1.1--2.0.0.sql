@@ -196,3 +196,13 @@ CREATE FUNCTION last_key(icollection)
 CREATE CAST (icollection AS json)
     WITH INOUT
     AS IMPLICIT;
+
+CREATE FUNCTION delete(collection)
+    RETURNS collection
+    AS 'MODULE_PATHNAME', 'collection_delete_all'
+    LANGUAGE C;
+
+CREATE FUNCTION delete(icollection)
+    RETURNS icollection
+    AS 'MODULE_PATHNAME', 'icollection_delete_all'
+    LANGUAGE C;

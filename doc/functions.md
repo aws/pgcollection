@@ -10,6 +10,7 @@ Both `collection` (text-keyed) and `icollection` (integer-keyed) support the sam
 | `add(collection, text, anyelement)` | `collection` | Adds an anyelement item to a collection |
 | `count(collection)` | `int4` | Returns the number of items in a collection |
 | `delete(collection, text)` | `collection` | Deletes an item from a collection |
+| `delete(collection)` | `collection` | Deletes all items from a collection, preserving the value type |
 | `exist(collection, text)` | `bool` | Returns true if a given key exists in the collection |
 | `find(collection, text)` | `text` | Returns a text item from a collection if it exists |
 | `find(collection, text, anyelement)` | `anyelement` | Returns an anyelement item from a collection if it exists |
@@ -42,6 +43,7 @@ Both `collection` (text-keyed) and `icollection` (integer-keyed) support the sam
 | `add(icollection, bigint, anyelement)` | `icollection` | Adds an anyelement item to an icollection |
 | `count(icollection)` | `int4` | Returns the number of items in an icollection |
 | `delete(icollection, bigint)` | `icollection` | Deletes an item from an icollection |
+| `delete(icollection)` | `icollection` | Deletes all items from an icollection, preserving the value type |
 | `exist(icollection, bigint)` | `bool` | Returns true if a given key exists in the icollection |
 | `find(icollection, bigint)` | `text` | Returns a text item from an icollection if it exists |
 | `find(icollection, bigint, anyelement)` | `anyelement` | Returns an anyelement item from an icollection if it exists |

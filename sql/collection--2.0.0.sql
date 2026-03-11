@@ -88,6 +88,11 @@ CREATE FUNCTION delete(collection, text)
   AS 'MODULE_PATHNAME', 'collection_delete'
   LANGUAGE c;
 
+CREATE FUNCTION delete(collection)
+  RETURNS collection
+  AS 'MODULE_PATHNAME', 'collection_delete_all'
+  LANGUAGE C;
+
 CREATE FUNCTION sort(collection)
   RETURNS collection
   AS 'MODULE_PATHNAME', 'collection_sort'
@@ -303,6 +308,11 @@ CREATE FUNCTION count(icollection)
 CREATE FUNCTION delete(icollection, bigint)
     RETURNS icollection
     AS 'MODULE_PATHNAME', 'icollection_delete'
+    LANGUAGE C;
+
+CREATE FUNCTION delete(icollection)
+    RETURNS icollection
+    AS 'MODULE_PATHNAME', 'icollection_delete_all'
     LANGUAGE C;
 
 CREATE FUNCTION first(icollection)

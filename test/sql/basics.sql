@@ -1388,3 +1388,151 @@ BEGIN
 EXCEPTION WHEN datatype_mismatch THEN
   RAISE NOTICE 'ic cast error caught';
 END $$;
+
+
+-- ============================================================
+-- delete() with no args — collection
+-- ============================================================
+DO
+$$
+DECLARE
+  c collection;
+BEGIN
+  c['a'] := 'alpha';
+  c['b'] := 'bravo';
+  c['c'] := 'charlie';
+  ASSERT count(c) = 3, 'pre-delete count';
+  c := delete(c);
+  ASSERT count(c) = 0, 'post-delete count';
+  ASSERT isnull(c), 'iterator null after delete all';
+  c['d'] := 'delta';
+  ASSERT count(c) = 1, 'add after delete all';
+  ASSERT find(c, 'd') = 'delta', 'find after delete all';
+END;
+$$;
+
+-- delete() with no args — collection (date values, type preserved)
+DO
+$$
+DECLARE
+  c collection('date');
+BEGIN
+  c['start'] := '2024-01-01'::date;
+  c['end']   := '2024-12-31'::date;
+  c := delete(c);
+  ASSERT count(c) = 0, 'date delete all';
+  c['mid'] := '2024-06-15'::date;
+  ASSERT find(c, 'mid', NULL::date) = '2024-06-15'::date, 'date add after delete';
+END;
+$$;
+
+-- delete() with no args — collection (numeric values, type preserved)
+DO
+$$
+DECLARE
+  c collection('numeric');
+BEGIN
+  c['pi']  := 3.14159;
+  c['e']   := 2.71828;
+  c['phi'] := 1.61803;
+  c := delete(c);
+  ASSERT count(c) = 0, 'numeric delete all';
+  c['tau'] := 6.28318;
+  ASSERT find(c, 'tau', NULL::numeric) = 6.28318, 'numeric add after delete';
+END;
+$$;
+
+-- delete() with no args — collection (composite type, type preserved)
+CREATE TYPE test_delete_comp AS (x int, y int);
+
+DO
+$$
+DECLARE
+  c   collection('test_delete_comp');
+  val test_delete_comp;
+BEGIN
+  c['p1'] := ROW(1, 2)::test_delete_comp;
+  c['p2'] := ROW(3, 4)::test_delete_comp;
+  c := delete(c);
+  ASSERT count(c) = 0, 'composite delete all';
+  c['p3'] := ROW(5, 6)::test_delete_comp;
+  val := find(c, 'p3', NULL::test_delete_comp);
+  ASSERT val.x = 5 AND val.y = 6, 'composite add after delete';
+END;
+$$;
+
+DROP TYPE test_delete_comp;
+
+-- ============================================================
+-- delete() with no args — icollection
+-- ============================================================
+DO
+$$
+DECLARE
+  ic icollection('text');
+BEGIN
+  ic[1]   := 'one';
+  ic[100] := 'hundred';
+  ic[999] := 'nine-nine-nine';
+  ASSERT count(ic) = 3, 'ic pre-delete';
+  ic := delete(ic);
+  ASSERT count(ic) = 0, 'ic post-delete';
+  ASSERT isnull(ic), 'ic iterator null';
+  ic[42] := 'answer';
+  ASSERT count(ic) = 1, 'ic add after delete';
+  ASSERT find(ic, 42) = 'answer', 'ic find after delete';
+END;
+$$;
+
+-- delete() with no args — icollection (int4 values, type preserved)
+DO
+$$
+DECLARE
+  ic icollection('int4');
+BEGIN
+  ic[1] := 10;
+  ic[2] := 20;
+  ic[3] := 30;
+  ic := delete(ic);
+  ASSERT count(ic) = 0, 'int4 ic delete all';
+  ic[4] := 40;
+  ASSERT find(ic, 4, NULL::int4) = 40, 'int4 ic add after delete';
+END;
+$$;
+
+-- delete() with no args — icollection (bigint extreme keys)
+DO
+$$
+DECLARE
+  ic icollection('bigint');
+BEGIN
+  ic[9223372036854775807] := 9223372036854775807;
+  ic[-9223372036854775808] := -9223372036854775808;
+  ic[0] := 0;
+  ASSERT count(ic) = 3, 'bigint extreme keys pre-delete';
+  ic := delete(ic);
+  ASSERT count(ic) = 0, 'bigint extreme keys post-delete';
+  ic[1] := 1;
+  ASSERT find(ic, 1, NULL::bigint) = 1, 'bigint add after delete';
+END;
+$$;
+
+-- single-key delete still works after adding delete() overload
+DO
+$$
+DECLARE
+  c  collection;
+  ic icollection('text');
+BEGIN
+  c['a'] := '1'; c['b'] := '2'; c['c'] := '3';
+  c := delete(c, 'b');
+  ASSERT count(c) = 2, 'single delete still works';
+  ASSERT NOT exist(c, 'b'), 'single deleted key gone';
+  ASSERT find(c, 'a') = '1', 'other keys intact';
+
+  ic[1] := 'x'; ic[2] := 'y';
+  ic := delete(ic, 1);
+  ASSERT count(ic) = 1, 'ic single delete still works';
+  ASSERT find(ic, 2) = 'y', 'ic other key intact';
+END;
+$$;

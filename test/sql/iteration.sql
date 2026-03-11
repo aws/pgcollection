@@ -1060,3 +1060,27 @@ BEGIN
   END;
   ASSERT ok, 'ic prev_key on missing key should error';
 END $$;
+
+
+-- ============================================================
+-- Iteration after delete() with no args and re-add
+-- ============================================================
+DO
+$$
+DECLARE
+  c collection;
+BEGIN
+  c['a'] := '1'; c['b'] := '2';
+  c := delete(c);
+  c['x'] := '10'; c['y'] := '20'; c['z'] := '30';
+  c := first(c);
+  ASSERT NOT isnull(c), 'iterator valid after re-add';
+  ASSERT key(c) = 'x', 'first key after re-add';
+  c := sort(c);
+  ASSERT key(c) = 'x', 'sorted first key';
+  c := next(c);
+  ASSERT key(c) = 'y', 'sorted second key';
+  c := next(c);
+  ASSERT key(c) = 'z', 'sorted third key';
+END;
+$$;
