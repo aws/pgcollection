@@ -323,7 +323,7 @@ collection_delete_range(PG_FUNCTION_ARGS)
 
 	if (PG_ARGISNULL(1) || PG_ARGISNULL(2))
 		PG_RETURN_DATUM(EOHPGetRWDatum(
-			&(fetch_collection(fcinfo, 0))->hdr));
+									   &(fetch_collection(fcinfo, 0))->hdr));
 
 	colhdr = fetch_collection(fcinfo, 0);
 
