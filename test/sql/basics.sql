@@ -1,4 +1,742 @@
+--
+-- basics.sql
+--     Core CRUD operations, JSON I/O, type system, NULL handling,
+--     empty collection operations, stats, and type coercion.
+--     Covers both collection (text-keyed) and icollection (int-keyed).
+--
+
+-- ============================================================
+-- PART 1: collection (text-keyed)
+-- ============================================================
+
+DO $$
+DECLARE
+  u   collection;
+BEGIN
+  RAISE NOTICE 'Test 1';
+  u := add(u, 'aaa', 'Hello World'::text);
+  RAISE NOTICE 'value: %', value(u);
+END
+$$;
+
+DO $$
+DECLARE
+  u   collection;
+BEGIN
+  RAISE NOTICE 'Test 2';
+  u := add(u, 'aaa', '1999-12-31'::date);
+  RAISE NOTICE 'value: %', value(u);
+END
+$$;
+
+DO $$
+DECLARE
+  u   collection;
+BEGIN
+  RAISE NOTICE 'Test 3';
+  u := add(u, 'aaa', 'Hello World'::text);
+  RAISE NOTICE 'value: %', value(u, null::varchar);
+END
+$$;
+
+DO $$
+DECLARE
+  u   collection;
+BEGIN
+  RAISE NOTICE 'Test 4';
+  u := add(u, 'aaa', '1999-12-31'::date);
+  RAISE NOTICE 'value: %', value(u, null::date);
+END
+$$;
+
+DO $$
+DECLARE
+  u   collection;
+BEGIN
+  RAISE NOTICE 'Test 5';
+  u := add(u, 'aaa', 'Hello World'::text);
+  u := add(u, 'bbb', 'Hello All'::text);
+  RAISE NOTICE 'count: %', count(u);
+END
+$$;
+
+DO $$
+DECLARE
+  u   collection;
+BEGIN
+  RAISE NOTICE 'Test 6';
+  u := add(u, 'aaa', 'Hello World'::text);
+  u := add(u, 'bbb', 'Hello All'::text);
+  RAISE NOTICE 'find: %', find(u, 'aaa', null::text);
+END
+$$;
+
+DO $$
+DECLARE
+  u   collection;
+BEGIN
+  RAISE NOTICE 'Test 7';
+  u := add(u, 'aaa', '1999-12-31'::date);
+  u := add(u, 'bbb', '2000-01-01'::date);
+  RAISE NOTICE 'find: %', find(u, 'aaa', null::text);
+END
+$$;
+
+DO $$
+DECLARE
+  u   collection;
+  t   text;
+BEGIN
+  RAISE NOTICE 'Test 8';
+  u := add(u, 'aaa', 'Hello World');
+  u := add(u, 'bbb', 'Hello All');
+  RAISE NOTICE 'count: %', count(u);
+
+  u := add(u, 'ccc', 'Hello Everyone');
+  u := add(u, 'ddd', 'First Hello');
+  RAISE NOTICE 'count: %', count(u);
+
+  t := key(u);
+  RAISE NOTICE 'current key: %', t;
+END
+$$;
+
+DO $$
+DECLARE
+  u   collection;
+BEGIN
+  RAISE NOTICE 'Test 9';
+  u := add(u, 'aaa', 'Hello World');
+  u := add(u, 'bbb', 'Hello All');
+  RAISE NOTICE 'count: %', count(u);
+
+  u := delete(u, 'aaa');
+  RAISE NOTICE 'count: %', count(u);
+END
+$$;
+
+DO $$
+DECLARE
+  u   collection;
+BEGIN
+  RAISE NOTICE 'Test 10';
+  u := add(u, 'aaa', 'Hello World'::text);
+  u := add(u, null, 'Hello All'::text);
+  RAISE NOTICE 'count: %', count(u);
+END
+$$;
+
+DO $$
+DECLARE
+  u   collection;
+BEGIN
+  RAISE NOTICE 'Test 11';
+  u := add(u, 'aaa', 'Hello World'::text);
+  u := add(u, 'bbb', null);
+  RAISE NOTICE 'count: %', count(u);
+END
+$$;
+
+DO $$
+DECLARE
+  u   collection;
+BEGIN
+  RAISE NOTICE 'Test 12';
+  u := add(u, repeat('a', 4096), 'Hello World'::text);
+  RAISE NOTICE 'count: %', count(u);
+END
+$$;
+
+DO $$
+DECLARE
+  u   collection;
+BEGIN
+  RAISE NOTICE 'Test 13';
+  u := add(u, 'aaa', 'Hello World'::text);
+  u := add(u, 'bbb', 'Hello All'::text);
+  RAISE NOTICE 'find: %', find(u, null);
+END
+$$;
+
+DO $$
+DECLARE
+  u   collection;
+BEGIN
+  RAISE NOTICE 'Test 14';
+  u := add(u, 'aaa', 'Hello World'::text);
+  u := add(u, 'bbb', 'Hello All'::text);
+  RAISE NOTICE 'find: %', find(u, repeat('a', 256));
+END
+$$;
+
+DO $$
+DECLARE
+  u   collection;
+BEGIN
+  RAISE NOTICE 'Test 15';
+  u := add(u, 'aaa', 'Hello World');
+  u := add(u, 'bbb', 'Hello All');
+
+  u := delete(u, null);
+  RAISE NOTICE 'count: %', count(u);
+END
+$$;
+
+DO $$
+DECLARE
+  u   collection;
+BEGIN
+  RAISE NOTICE 'Test 15';
+  u := add(u, 'aaa', 'Hello World');
+  u := add(u, 'bbb', 'Hello All');
+
+  u := delete(u, repeat('a', 256));
+  RAISE NOTICE 'count: %', count(u);
+END
+$$;
+
+DO $$
+DECLARE
+  u   collection('text');
+  v   collection('text');
+BEGIN
+  RAISE NOTICE 'Test 16';
+  u := add(u, 'aaa', 'Hello World');
+  u := add(u, 'bbb', 'Hello All');
+
+  v := u;
+  v := add(v, 'ccc', 'Hi');
+  RAISE NOTICE 'count: u(%), v(%)', count(u), count(v);
+END
+$$;
+
+DO $$
+DECLARE
+  u   collection('text');
+  v   collection('text');
+BEGIN
+  RAISE NOTICE 'Test 17';
+  u := add(u, 'aaa', 'Hello World');
+  u := add(u, 'bbb', 'Hello All');
+
+  v := copy(u);
+  v := add(v, 'ccc', 'Hi');
+  RAISE NOTICE 'count: u(%), v(%)', count(u), count(v);
+END
+$$;
+
+DO $$
+DECLARE
+  u   collection('text');
+BEGIN
+  RAISE NOTICE 'Test 18';
+  u := add(u, 'aaa', 'Hello World');
+  u := add(u, 'bbb', 'Hello All');
+
+  RAISE NOTICE 'json: %', to_json(u);
+END
+$$;
+
+DO $$
+DECLARE
+  u   collection('int');
+BEGIN
+  RAISE NOTICE 'Test 19';
+  u := add(u, 'aaa', 42);
+  u := add(u, 'bbb', 84);
+
+  RAISE NOTICE 'json: %', to_json(u);
+END
+$$;
+
+CREATE TABLE collection_regress(col1 varchar, col2 varchar, col3 int);
+
+INSERT INTO collection_regress VALUES ('aaa', 'Hello World', 42), ('bbb', 'Hello All', 84);
+
+DO
+$$
+DECLARE
+  r       collection_regress%ROWTYPE;
+  c       collection('collection_regress');
+  cr      record;
+BEGIN
+  RAISE NOTICE 'Test 20';
+  FOR r IN SELECT col1, col2, col3 
+             FROM collection_regress 
+            ORDER BY col1
+  LOOP
+    c[r.col1] = r;
+  END LOOP;
+
+  RAISE NOTICE 'output: %', c;
+END
+$$;
+
+DO
+$$
+DECLARE
+  r       collection_regress%ROWTYPE;
+  c       collection('collection_regress');
+  cr      record;
+BEGIN
+  RAISE NOTICE 'Test 21';
+  FOR r IN SELECT col1, col2, col3 
+             FROM collection_regress 
+            ORDER BY col1
+  LOOP
+    c[r.col1] = r;
+  END LOOP;
+
+  RAISE NOTICE 'json: %', c::json;
+END
+$$;
+
+DROP TABLE collection_regress;
+
+SELECT add(null::collection, 'aaa', 'Hello World');
+
+SELECT add(add(null::collection, 'aaa', 'Hello World'), 'bbb', 'Hello All');
+
+SELECT '{"value_type": "text", "entries": {"aaa": "Hello World", "bbb": "Hello All"}}'::collection;
+
+SELECT add(add(null::collection, 'aaa', '1999-12-31'::date),'bbb', '2000-01-01'::date);
+
+SELECT add(add(null::collection, 'aaa', '1999-12-31'::date),'bbb', null::date);
+
+SELECT '{"value_type": "text", "entries": {"aaa": "Hello World"}'::collection;
+
+SELECT '{"value_type": "text", "entry": {"aaa": "Hello World"}}'::collection;
+
+SELECT '{"entries": {"aaa": "Hello World"}}'::collection;
+
+SELECT '{"entries": {"aaa": "Hello World"}, "value_type": "text"}'::collection;
+
+SELECT '{"value_type": "text", "entries": {"aaa": "Hello World", "bbb": 1}}'::collection;
+
+SELECT collection_stats_reset();
+
+DO $$
+DECLARE
+  u   collection('text');
+  v   collection('text');
+BEGIN
+  RAISE NOTICE 'Test 22';
+  u := add(u, 'aaa', 'Hello World');
+  u := add(u, 'bbb', 'Hello All');
+
+  v := u;
+  v := add(v, 'ccc', 'Hi');
+  RAISE NOTICE 'count: u(%), v(%)', count(u), count(v);
+END
+$$;
+
+SELECT * FROM collection_stats;
+
+CREATE TABLE collections_test (c1 int, c2 collection);
+
+INSERT INTO collections_test VALUES (1, add(null::collection, 'aaa', 'Hello World')); 
+INSERT INTO collections_test VALUES (2, add(null::collection, 'bbb', 'Hello ALL')); 
+
+SELECT * FROM collections_test ORDER BY c1;
+
+DROP TABLE collections_test;
+
+DO
+$$
+DECLARE
+  t  collection;
+BEGIN
+  RAISE NOTICE 'Test 23';
+  t := add(t, '1', 111::bigint);
+  t := add(t, '2', 222::bigint);
+  RAISE NOTICE 'The current val is %', value(t, null::bigint);
+  RAISE NOTICE 'The current value type is %', pg_typeof(value(t, null::bigint));
+END
+$$;
+
+DO
+$$
+DECLARE
+  t  collection;
+BEGIN
+  RAISE NOTICE 'Test 24';
+  t := add(t, '1', 111::bigint);
+  t := add(t, '2', 'hello'::text);
+END
+$$;
+
+DO
+$$
+DECLARE
+  t  collection;
+BEGIN
+  RAISE NOTICE 'Test 25';
+  t := add(t, '1', 111::bigint);
+  RAISE NOTICE 'The type is %', value_type(t);
+END
+$$;
+
+DO $$
+DECLARE
+  u   collection;
+BEGIN
+  RAISE NOTICE 'Test 26';
+  u := add(u, 'aaa', 'Hello World'::text);
+  u := add(u, 'bbb', 'Hello All'::text);
+  u := delete(u, 'aaa');
+  u := delete(u, 'bbb');
+  u := add(u, 'aaa', 'Hello'::text);
+  u := add(u, 'bbb', 'World'::text);
+  RAISE NOTICE 'count: %', count(u);
+END
+$$;
+
+DO $$
+DECLARE
+  n collection('numeric(8,2)');
+BEGIN
+  RAISE NOTICE 'Test 27';
+  n['aaa'] := 3.14::numeric;
+END $$;
+
+DO $$
+DECLARE
+  u   collection;
+BEGIN
+  RAISE NOTICE 'Test 28';
+  u := add(u, 'aaa', 'Hello World'::text);
+  u := add(u, 'bbb', 'Hello All'::text);
+
+  RAISE NOTICE 'bbb exist: %', exist(u, 'bbb');
+  RAISE NOTICE 'ccc exist: %', exist(u, 'ccc');
+  RAISE NOTICE '<null> exist: %', exist(u, null);
+END
+$$;
+
+DO $$
+DECLARE
+  pgc_char collection('CHAR');
+BEGIN
+  RAISE NOTICE 'Test 29';
+  NULL;
+END $$;
+
+DO $$
+DECLARE
+  c collection;
+  long_key text;
+BEGIN
+  RAISE NOTICE 'Test 30';
+  long_key := repeat('a', 32768);
+  c := add(c, long_key, 'test_value');
+END $$;
+
+DO $$
+DECLARE
+  c collection;
+  max_key text;
+BEGIN
+  RAISE NOTICE 'Test 31';
+  max_key := repeat('c', 32767);
+  c := add(c, max_key, 'test_value');
+  RAISE NOTICE 'Success: Key with length 32767 accepted';
+END $$;
+
+DO $$
+DECLARE
+  c collection;
+  long_key text;
+BEGIN
+  RAISE NOTICE 'Test 32';
+  c := add(c, 'valid_key', 'test_value');
+  
+  long_key := repeat('d', 32768);
+  RAISE NOTICE 'find: %', find(c, long_key);
+END $$;
+
+DO $$
+DECLARE
+  c collection;
+  long_key text;
+BEGIN
+  RAISE NOTICE 'Test 33';
+  c := add(c, 'valid_key', 'test_value');
+  
+  long_key := repeat('e', 32768);
+  RAISE NOTICE 'exist: %', exist(c, long_key);
+END $$;
+
+DO $$
+DECLARE
+  c collection;
+  long_key text;
+BEGIN
+  RAISE NOTICE 'Test 34';
+  c := add(c, 'valid_key', 'test_value');
+  
+  long_key := repeat('f', 32768);
+  c := delete(c, long_key);
+END $$;
+
+SELECT delete('{"value_type": "pg_catalog.text", "entries": {"A": "A", "B": "B", "C": "C"}}'::collection, 'A');
+
+-- Test delete with pass-by-value types (int4) - regression test for bug fixed in commit 16eecda
+DO $$
+DECLARE
+    c collection('int4');
+BEGIN
+    c := add(c, 'a', 1);
+    c := add(c, 'b', 2);
+    c := add(c, 'c', 3);
+    
+    c := delete(c, 'a');
+    RAISE NOTICE 'After delete a, count: %', count(c);
+    
+    c := delete(c, 'b');
+    RAISE NOTICE 'After delete b, count: %', count(c);
+    
+    c := delete(c, 'c');
+    RAISE NOTICE 'After delete c, count: %', count(c);
+END $$;
+
+DO $$
+DECLARE
+  arr_instance collection('collection');
+BEGIN
+  RAISE NOTICE 'Test 35';
+
+  -- Initialize: A -> AA := 1
+  arr_instance := add(arr_instance, 'A', add(NULL::collection, 'AA', 1::int));
+
+  FOR i IN 1..10 LOOP
+    -- Update: A -> AB := 1
+    RAISE NOTICE 'Attempt: %', i;
+    arr_instance := add(arr_instance, 'A', add(find(arr_instance, 'A', NULL::collection), 'AB', 1::int));
+  END LOOP;
+END $$;
+
+DO $$
+DECLARE
+  c1 collection('text');
+BEGIN
+  RAISE NOTICE 'Test 36';
+
+  -- Uninitialized collection
+    RAISE NOTICE 'find(c1): %', find(c1, 'B', NULL::TEXT);
+END $$;
+
+DO $$
+DECLARE
+  c2 collection('text') DEFAULT '{"value_type": "text", "entries": {}}'::collection;
+BEGIN
+  RAISE NOTICE 'Test 37';
+
+  -- Empty collection
+  RAISE NOTICE 'find(c2): %', find(c2, 'B', NULL::TEXT);
+END $$;
+
+DO $$
+DECLARE
+  c3 collection('text');
+BEGIN
+  RAISE NOTICE 'Test 38';
+
+  -- Non-empty collection
+  c3 := add(c3, 'A', 'Hello World');
+  RAISE NOTICE 'find(c3): %', find(c3, 'B', NULL::TEXT);
+END $$;
+
+DO $$
+DECLARE
+  c1 collection('text');
+  c2 collection('text') DEFAULT '{"value_type": "text", "entries": {}}'::collection;
+  c3 collection('text');
+BEGIN
+  RAISE NOTICE 'Test 39';
+
+  -- Uninitialized collection
+  RAISE NOTICE 'count(c1): %', count(c1);
+
+  -- Empty collection
+  RAISE NOTICE 'count(c2): %', count(c2);
+
+  -- Non-empty collection
+  c3 := add(c3, 'A', 'Hello World');
+  RAISE NOTICE 'count(c3): %', count(c3);
+END
+$$;
+
+DO $$
+DECLARE
+  val1 collection('int4');
+BEGIN
+  RAISE NOTICE 'Test 40';
+
+  val1 := add(val1, 'A', 1::int4);
+  val1 := add(val1, 'A', 2::int4);
+END;
+$$;
+
+-- ============================================================
+-- Flatten/unflatten roundtrip with typed collections
+-- ============================================================
+CREATE TABLE collection_persist_test(id serial, c collection);
+
+-- bigint values
+INSERT INTO collection_persist_test(c)
+  SELECT add(add(null::collection, 'a', 100::bigint), 'b', 200::bigint);
+
+-- date values
+INSERT INTO collection_persist_test(c)
+  SELECT add(add(null::collection, 'x', '2026-01-01'::date), 'y', '2026-12-31'::date);
+
+-- collection with NULL values
+INSERT INTO collection_persist_test(c)
+  SELECT add(add(null::collection, 'present', 'hello'), 'missing', null::text);
+
+SELECT id, c FROM collection_persist_test ORDER BY id;
+SELECT id, count(c), value_type(c) FROM collection_persist_test ORDER BY id;
+
+-- verify values survive roundtrip
+DO $$
+DECLARE
+  r record;
+BEGIN
+  SELECT c INTO r FROM collection_persist_test WHERE id = 1;
+  ASSERT find(r.c, 'a', 0::bigint) = 100, 'bigint roundtrip failed';
+  ASSERT find(r.c, 'b', 0::bigint) = 200, 'bigint roundtrip b failed';
+
+  SELECT c INTO r FROM collection_persist_test WHERE id = 2;
+  ASSERT find(r.c, 'x', '2000-01-01'::date) = '2026-01-01'::date, 'date roundtrip failed';
+
+  SELECT c INTO r FROM collection_persist_test WHERE id = 3;
+  ASSERT find(r.c, 'present') = 'hello', 'text roundtrip failed';
+  ASSERT find(r.c, 'missing') IS NULL, 'null roundtrip failed';
+END $$;
+
+-- composite type values
+CREATE TABLE collection_comp_type(col1 text, col2 int);
+INSERT INTO collection_comp_type VALUES ('hello', 42), ('world', 99);
+
+INSERT INTO collection_persist_test(c)
+  SELECT add(add(null::collection, 'r1', r), 'r2', r)
+    FROM (SELECT row('hello', 42)::collection_comp_type AS r) sub;
+
+SELECT id, c FROM collection_persist_test WHERE id = 4;
+
+DO $$
+DECLARE
+  r record;
+  v collection_comp_type;
+BEGIN
+  SELECT c INTO r FROM collection_persist_test WHERE id = 4;
+  v := find(r.c, 'r1', null::collection_comp_type);
+  ASSERT v.col1 = 'hello' AND v.col2 = 42,
+    format('composite roundtrip failed: %s', v);
+END $$;
+
+DROP TABLE collection_comp_type;
+DROP TABLE collection_persist_test;
+
+-- ============================================================
+-- Delete all then reuse
+-- ============================================================
+DO $$
+DECLARE
+  c collection;
+BEGIN
+  c := add(c, 'a', 'one');
+  c := add(c, 'b', 'two');
+  c := delete(c, 'a');
+  c := delete(c, 'b');
+  ASSERT count(c) = 0, 'count after delete-all should be 0';
+  ASSERT isnull(c), 'iterator should be null after delete-all';
+
+  -- reuse
+  c := add(c, 'x', 'new');
+  ASSERT count(c) = 1, 'count after re-add should be 1';
+  ASSERT find(c, 'x') = 'new', 'find after re-add failed';
+END $$;
+
+-- ============================================================
+-- Key length validation
+-- ============================================================
+DO $$
+DECLARE
+  c collection;
+  long_key text;
+BEGIN
+  long_key := repeat('x', 32768);
+  c := add(c, long_key, 'val');
+EXCEPTION WHEN program_limit_exceeded THEN
+  RAISE NOTICE 'key length error caught';
+END $$;
+
+-- ============================================================
+-- Empty collection operations
+-- ============================================================
+DO $$
+DECLARE
+  c collection;
+  v text;
+  ok boolean;
+BEGIN
+  c := add(c, 'a', 'val');
+  c := delete(c, 'a');
+  -- now c is empty but not null
+
+  ASSERT count(c) = 0, 'empty count';
+  ASSERT key(c) IS NULL, 'empty key';
+  ASSERT value(c) IS NULL, 'empty value';
+  ASSERT isnull(c), 'empty isnull';
+  ASSERT first_key(c) IS NULL, 'empty first_key';
+  ASSERT last_key(c) IS NULL, 'empty last_key';
+  ASSERT value_type(c) IS NULL, 'empty value_type';
+
+  -- sort on empty should not error
+  c := sort(c);
+  ASSERT count(c) = 0, 'empty sort count';
+
+  -- copy of empty returns null
+  ASSERT copy(c) IS NULL, 'empty copy';
+
+  -- find on empty should error
+  ok := false;
+  BEGIN
+    v := find(c, 'nope');
+  EXCEPTION WHEN no_data_found THEN
+    ok := true;
+  END;
+  ASSERT ok, 'find on empty should error';
+END $$;
+
+-- ============================================================
+-- NULL arg edge cases
+-- ============================================================
+SELECT find(null::collection, 'k');
+SELECT exist(null::collection, 'k');
+SELECT count(null::collection);
+
+-- ============================================================
+-- Cast error path
+-- ============================================================
+DO $$
+DECLARE
+  c collection;
+  t collection('bigint');
+BEGIN
+  c := add(c, 'a', 'hello');
+  t := c;
+EXCEPTION WHEN datatype_mismatch THEN
+  RAISE NOTICE 'cast error caught';
+END $$;
+
+-- ============================================================
+-- PART 2: icollection (int-keyed)
+-- ============================================================
+
 -- Test icollection type
+
 -- Basic DO block tests matching collection test structure
 DO $$
 DECLARE
@@ -9,8 +747,7 @@ BEGIN
   RAISE NOTICE 'value: %', value(ic);
 END
 $$;
-NOTICE:  Test 1
-NOTICE:  value: Hello World
+
 DO $$
 DECLARE
   ic   icollection;
@@ -20,8 +757,7 @@ BEGIN
   RAISE NOTICE 'value: %', value(ic);
 END
 $$;
-NOTICE:  Test 2
-NOTICE:  value: 12-31-1999
+
 DO $$
 DECLARE
   ic   icollection;
@@ -32,8 +768,7 @@ BEGIN
   RAISE NOTICE 'count: %', count(ic);
 END
 $$;
-NOTICE:  Test 3
-NOTICE:  count: 2
+
 DO $$
 DECLARE
   ic   icollection;
@@ -44,8 +779,7 @@ BEGIN
   RAISE NOTICE 'find: %', find(ic, 1);
 END
 $$;
-NOTICE:  Test 4
-NOTICE:  find: Hello World
+
 DO $$
 DECLARE
   ic   icollection;
@@ -56,8 +790,7 @@ BEGIN
   RAISE NOTICE 'find: %', find(ic, 1);
 END
 $$;
-NOTICE:  Test 5
-NOTICE:  find: 12-31-1999
+
 DO $$
 DECLARE
   ic   icollection;
@@ -76,120 +809,55 @@ BEGIN
   RAISE NOTICE 'current key: %', k;
 END
 $$;
-NOTICE:  Test 6
-NOTICE:  count: 2
-NOTICE:  count: 4
-NOTICE:  current key: 1
+
 -- Test empty icollection creation
 SELECT '{}'::icollection;
-ERROR:  unexpected object end
-LINE 1: SELECT '{}'::icollection;
-               ^
+
 -- Test that icollection type exists and is distinct
 SELECT typname FROM pg_type WHERE typname = 'icollection';
-   typname   
--------------
- icollection
-(1 row)
 
 -- Test icollection_add function
 SELECT add('{}'::icollection, 1, 'hello'::text);
-ERROR:  unexpected object end
-LINE 1: SELECT add('{}'::icollection, 1, 'hello'::text);
-                   ^
 SELECT add(add('{}'::icollection, 1, 'hello'::text), 2, 'world'::text);
-ERROR:  unexpected object end
-LINE 1: SELECT add(add('{}'::icollection, 1, 'hello'::text), 2, 'wor...
-                       ^
+
 -- Test with different value types
 SELECT add(add('{}'::icollection, 10, 42), 20, 100);
-ERROR:  unexpected object end
-LINE 1: SELECT add(add('{}'::icollection, 10, 42), 20, 100);
-                       ^
 SELECT add(add('{}'::icollection, 1, '2024-01-01'::date), 2, '2024-12-31'::date);
-ERROR:  unexpected object end
-LINE 1: SELECT add(add('{}'::icollection, 1, '2024-01-01'::date), 2,...
-                       ^
 SELECT add(add('{}'::icollection, 1, 1.5::float8), 2, 2.5::float8);
-ERROR:  unexpected object end
-LINE 1: SELECT add(add('{}'::icollection, 1, 1.5::float8), 2, 2.5::f...
-                       ^
+
 -- Test with NULL values
 SELECT add(add('{}'::icollection, 1, 'value'::text), 2, NULL::text);
-ERROR:  unexpected object end
-LINE 1: SELECT add(add('{}'::icollection, 1, 'value'::text), 2, NULL...
-                       ^
 SELECT add(add('{}'::icollection, 1, '1999-12-31'::date), 2, null::date);
-ERROR:  unexpected object end
-LINE 1: SELECT add(add('{}'::icollection, 1, '1999-12-31'::date), 2,...
-                       ^
+
 -- Test key replacement
 SELECT add(add(add('{}'::icollection, 1, 'first'::text), 1, 'second'::text), 2, 'third'::text);
-ERROR:  unexpected object end
-LINE 1: SELECT add(add(add('{}'::icollection, 1, 'first'::text), 1, ...
-                           ^
+
 -- Test find function
 SELECT find(add(add('{}'::icollection, 1, 'hello'::text), 2, 'world'::text), 1);
-ERROR:  unexpected object end
-LINE 1: SELECT find(add(add('{}'::icollection, 1, 'hello'::text), 2,...
-                            ^
 SELECT find(add(add('{}'::icollection, 1, 'hello'::text), 2, 'world'::text), 2);
-ERROR:  unexpected object end
-LINE 1: SELECT find(add(add('{}'::icollection, 1, 'hello'::text), 2,...
-                            ^
+
 -- Test find with NULL value
 SELECT find(add('{}'::icollection, 1, NULL::text), 1);
-ERROR:  unexpected object end
-LINE 1: SELECT find(add('{}'::icollection, 1, NULL::text), 1);
-                        ^
+
 -- Test find with non-existent key (should error)
 SELECT find('{}'::icollection, 999);
-ERROR:  unexpected object end
-LINE 1: SELECT find('{}'::icollection, 999);
-                    ^
+
 -- Test exist function
 SELECT exist(add(add('{}'::icollection, 1, 'hello'::text), 2, 'world'::text), 1);
-ERROR:  unexpected object end
-LINE 1: SELECT exist(add(add('{}'::icollection, 1, 'hello'::text), 2...
-                             ^
 SELECT exist(add(add('{}'::icollection, 1, 'hello'::text), 2, 'world'::text), 999);
-ERROR:  unexpected object end
-LINE 1: SELECT exist(add(add('{}'::icollection, 1, 'hello'::text), 2...
-                             ^
 SELECT exist(add('{}'::icollection, 1, NULL::text), 1);
-ERROR:  unexpected object end
-LINE 1: SELECT exist(add('{}'::icollection, 1, NULL::text), 1);
-                         ^
 SELECT exist('{}'::icollection, 1);
-ERROR:  unexpected object end
-LINE 1: SELECT exist('{}'::icollection, 1);
-                     ^
+
 -- Test count function
 SELECT count('{}'::icollection);
-ERROR:  unexpected object end
-LINE 1: SELECT count('{}'::icollection);
-                     ^
 SELECT count(add('{}'::icollection, 1, 'hello'::text));
-ERROR:  unexpected object end
-LINE 1: SELECT count(add('{}'::icollection, 1, 'hello'::text));
-                         ^
 SELECT count(add(add('{}'::icollection, 1, 'hello'::text), 2, 'world'::text));
-ERROR:  unexpected object end
-LINE 1: SELECT count(add(add('{}'::icollection, 1, 'hello'::text), 2...
-                             ^
+
 -- Test delete function
 SELECT delete(add(add('{}'::icollection, 1, 'hello'::text), 2, 'world'::text), 1);
-ERROR:  unexpected object end
-LINE 1: SELECT delete(add(add('{}'::icollection, 1, 'hello'::text), ...
-                              ^
 SELECT count(delete(add(add('{}'::icollection, 1, 'hello'::text), 2, 'world'::text), 1));
-ERROR:  unexpected object end
-LINE 1: SELECT count(delete(add(add('{}'::icollection, 1, 'hello'::t...
-                                    ^
 SELECT delete('{}'::icollection, 999);  -- delete non-existent key
-ERROR:  unexpected object end
-LINE 1: SELECT delete('{}'::icollection, 999);
-                      ^
+
 -- Test delete with pass-by-value types (int4) - regression test for bug fixed in commit 16eecda
 DO $$
 DECLARE
@@ -208,9 +876,7 @@ BEGIN
     ic := delete(ic, 3);
     RAISE NOTICE 'After delete 3, count: %', count(ic);
 END $$;
-NOTICE:  After delete 1, count: 2
-NOTICE:  After delete 2, count: 1
-NOTICE:  After delete 3, count: 0
+
 -- Test iterator functions
 DO $$
 DECLARE
@@ -224,11 +890,7 @@ BEGIN
         ic := next(ic);
     END LOOP;
 END $$;
-ERROR:  unexpected object end
-LINE 1: ic := add(add(add('{}'::icollection, 1, 'first'::text), 2, '...
-                          ^
-QUERY:  ic := add(add(add('{}'::icollection, 1, 'first'::text), 2, 'second'::text), 3, 'third'::text)
-CONTEXT:  PL/pgSQL function inline_code_block line 5 at assignment
+
 -- Test last and prev
 DO $$
 DECLARE
@@ -242,11 +904,7 @@ BEGIN
         ic := prev(ic);
     END LOOP;
 END $$;
-ERROR:  unexpected object end
-LINE 1: ic := add(add(add('{}'::icollection, 1, 'first'::text), 2, '...
-                          ^
-QUERY:  ic := add(add(add('{}'::icollection, 1, 'first'::text), 2, 'second'::text), 3, 'third'::text)
-CONTEXT:  PL/pgSQL function inline_code_block line 5 at assignment
+
 -- Test iterator on empty collection
 DO $$
 DECLARE
@@ -259,20 +917,11 @@ BEGIN
         RAISE NOTICE 'Empty collection iterator is null';
     END IF;
 END $$;
-ERROR:  unexpected object end
-LINE 1: ic := '{}'::icollection
-              ^
-QUERY:  ic := '{}'::icollection
-CONTEXT:  PL/pgSQL function inline_code_block line 5 at assignment
+
 -- Test sort function
 SELECT sort(add(add(add('{}'::icollection, 3, 'third'::text), 1, 'first'::text), 2, 'second'::text));
-ERROR:  unexpected object end
-LINE 1: SELECT sort(add(add(add('{}'::icollection, 3, 'third'::text)...
-                                ^
 SELECT sort(add(add(add('{}'::icollection, 100, 'z'::text), -50, 'a'::text), 0, 'm'::text));
-ERROR:  unexpected object end
-LINE 1: SELECT sort(add(add(add('{}'::icollection, 100, 'z'::text), ...
-                                ^
+
 -- Test copy function
 DO $$
 DECLARE
@@ -286,113 +935,44 @@ BEGIN
     RAISE NOTICE 'ic1 count: %', count(ic1);
     RAISE NOTICE 'ic2 count: %', count(ic2);
 END $$;
-ERROR:  unexpected object end
-LINE 1: ic1 := add(add('{}'::icollection, 1, 'original'::text), 2, '...
-                       ^
-QUERY:  ic1 := add(add('{}'::icollection, 1, 'original'::text), 2, 'data'::text)
-CONTEXT:  PL/pgSQL function inline_code_block line 6 at assignment
+
 -- Test copy of empty collection
 SELECT copy('{}'::icollection);
-ERROR:  unexpected object end
-LINE 1: SELECT copy('{}'::icollection);
-                    ^
+
 -- Test value_type function
 SELECT value_type(add('{}'::icollection, 1, 'text'::text));
-ERROR:  unexpected object end
-LINE 1: SELECT value_type(add('{}'::icollection, 1, 'text'::text));
-                              ^
 SELECT value_type(add('{}'::icollection, 1, 42::int4));
-ERROR:  unexpected object end
-LINE 1: SELECT value_type(add('{}'::icollection, 1, 42::int4));
-                              ^
 SELECT value_type(add('{}'::icollection, 1, '2024-01-01'::date));
-ERROR:  unexpected object end
-LINE 1: SELECT value_type(add('{}'::icollection, 1, '2024-01-01'::da...
-                              ^
+
 -- Test keys_to_table function
 SELECT * FROM keys_to_table(add(add(add('{}'::icollection, 3, 'c'::text), 1, 'a'::text), 2, 'b'::text)) ORDER BY 1;
-ERROR:  unexpected object end
-LINE 1: SELECT * FROM keys_to_table(add(add(add('{}'::icollection, 3...
-                                                ^
 SELECT * FROM keys_to_table('{}'::icollection);  -- empty collection
-ERROR:  unexpected object end
-LINE 1: SELECT * FROM keys_to_table('{}'::icollection);
-                                    ^
+
 -- Test values_to_table function
 SELECT * FROM values_to_table(sort(add(add(add('{}'::icollection, 3, 'third'::text), 1, 'first'::text), 2, 'second'::text)));
-ERROR:  unexpected object end
-LINE 1: SELECT * FROM values_to_table(sort(add(add(add('{}'::icollec...
-                                                       ^
 SELECT * FROM values_to_table(add(add('{}'::icollection, 1, 'value'::text), 2, NULL::text));  -- with NULL
-ERROR:  unexpected object end
-LINE 1: SELECT * FROM values_to_table(add(add('{}'::icollection, 1, ...
-                                              ^
+
 -- Test to_table function
 SELECT * FROM to_table(add(add(add('{}'::icollection, 10, 'ten'::text), 20, 'twenty'::text), 30, 'thirty'::text)) ORDER BY key;
-ERROR:  unexpected object end
-LINE 1: SELECT * FROM to_table(add(add(add('{}'::icollection, 10, 't...
-                                           ^
 SELECT * FROM to_table('{}'::icollection);  -- empty collection
-ERROR:  unexpected object end
-LINE 1: SELECT * FROM to_table('{}'::icollection);
-                               ^
+
 -- Test negative keys
 SELECT add(add(add('{}'::icollection, -1, 'negative'::text), 0, 'zero'::text), 1, 'positive'::text);
-ERROR:  unexpected object end
-LINE 1: SELECT add(add(add('{}'::icollection, -1, 'negative'::text),...
-                           ^
 SELECT sort(add(add(add('{}'::icollection, -1, 'negative'::text), 0, 'zero'::text), 1, 'positive'::text));
-ERROR:  unexpected object end
-LINE 1: SELECT sort(add(add(add('{}'::icollection, -1, 'negative'::t...
-                                ^
+
 -- Test large keys
 SELECT add(add('{}'::icollection, 9223372036854775807, 'max'::text), -9223372036854775808, 'min'::text);
-ERROR:  unexpected object end
-LINE 1: SELECT add(add('{}'::icollection, 9223372036854775807, 'max'...
-                       ^
+
 -- Test JSON parsing
 SELECT '{"value_type":"text","entries":{"1":"hello","2":"world"}}'::icollection;
-     icollection      
-----------------------
- {1: hello, 2: world}
-(1 row)
-
 SELECT '{"value_type":"int4","entries":{"10":"100","20":"200"}}'::icollection;
-    icollection     
---------------------
- {10: 100, 20: 200}
-(1 row)
-
 SELECT '{"entries":{"1":"default text"}}'::icollection;
-    icollection    
--------------------
- {1: default text}
-(1 row)
-
 SELECT '{"value_type":"text","entries":{"1":"value","2":null}}'::icollection;
-     icollection     
----------------------
- {1: value, 2: null}
-(1 row)
-
 SELECT count('{"value_type":"text","entries":{"1":"a","2":"b","3":"c"}}'::icollection);
- count 
--------
-     3
-(1 row)
 
 -- Test JSON parsing with find
 SELECT find('{"value_type":"text","entries":{"1":"hello","2":"world"}}'::icollection, 1);
- find  
--------
- hello
-(1 row)
-
 SELECT find('{"value_type":"text","entries":{"1":"hello","2":"world"}}'::icollection, 2);
- find  
--------
- world
-(1 row)
 
 -- Test key navigation functions
 DO $$
@@ -406,11 +986,7 @@ BEGIN
     RAISE NOTICE 'next_key(1): %', next_key(ic, 1);
     RAISE NOTICE 'prev_key(3): %', prev_key(ic, 3);
 END $$;
-ERROR:  unexpected object end
-LINE 1: ic := add(add(add('{}'::icollection, 1, 'first'::text), 2, '...
-                          ^
-QUERY:  ic := add(add(add('{}'::icollection, 1, 'first'::text), 2, 'second'::text), 3, 'third'::text)
-CONTEXT:  PL/pgSQL function inline_code_block line 5 at assignment
+
 -- Test key navigation with NULL returns
 DO $$
 DECLARE
@@ -421,11 +997,7 @@ BEGIN
     RAISE NOTICE 'next_key(2) is null: %', next_key(ic, 2) IS NULL;
     RAISE NOTICE 'prev_key(1) is null: %', prev_key(ic, 1) IS NULL;
 END $$;
-ERROR:  unexpected object end
-LINE 1: ic := add(add('{}'::icollection, 1, 'first'::text), 2, 'seco...
-                      ^
-QUERY:  ic := add(add('{}'::icollection, 1, 'first'::text), 2, 'second'::text)
-CONTEXT:  PL/pgSQL function inline_code_block line 5 at assignment
+
 -- Test typmod syntax
 DO $$
 DECLARE
@@ -435,7 +1007,7 @@ BEGIN
     ic[2] := 200;
     RAISE NOTICE 'value_type: %', value_type(ic);
 END $$;
-NOTICE:  value_type: integer
+
 -- Test polymorphic value
 DO $$
 DECLARE
@@ -446,8 +1018,7 @@ BEGIN
   RAISE NOTICE 'value: %', value(ic, null::varchar);
 END
 $$;
-NOTICE:  Test 7
-NOTICE:  value: Hello World
+
 DO $$
 DECLARE
   ic   icollection;
@@ -457,8 +1028,7 @@ BEGIN
   RAISE NOTICE 'value: %', value(ic, null::date);
 END
 $$;
-NOTICE:  Test 8
-NOTICE:  value: 12-31-1999
+
 -- Test polymorphic find
 DO $$
 DECLARE
@@ -470,8 +1040,7 @@ BEGIN
   RAISE NOTICE 'find: %', find(ic, 1, null::text);
 END
 $$;
-NOTICE:  Test 9
-NOTICE:  find: Hello World
+
 DO $$
 DECLARE
   ic   icollection;
@@ -482,8 +1051,7 @@ BEGIN
   RAISE NOTICE 'find: %', find(ic, 1, null::text);
 END
 $$;
-NOTICE:  Test 10
-NOTICE:  find: 12-31-1999
+
 -- Test delete then re-add
 DO $$
 DECLARE
@@ -499,8 +1067,7 @@ BEGIN
   RAISE NOTICE 'count: %', count(ic);
 END
 $$;
-NOTICE:  Test 11
-NOTICE:  count: 2
+
 -- Test add with NULL value
 DO $$
 DECLARE
@@ -512,8 +1079,7 @@ BEGIN
   RAISE NOTICE 'count: %', count(ic);
 END
 $$;
-NOTICE:  Test 12
-NOTICE:  count: 2
+
 -- Test exist with NULL key
 DO $$
 DECLARE
@@ -528,10 +1094,7 @@ BEGIN
   RAISE NOTICE '<null> exist: %', exist(ic, null);
 END
 $$;
-NOTICE:  Test 13
-NOTICE:  2 exist: t
-NOTICE:  999 exist: f
-NOTICE:  <null> exist: f
+
 -- Test find on uninitialized, empty, non-empty with missing key
 DO $$
 DECLARE
@@ -540,9 +1103,7 @@ BEGIN
   RAISE NOTICE 'Test 14';
   RAISE NOTICE 'find(c1): %', find(c1, 2, NULL::TEXT);
 END $$;
-NOTICE:  Test 14
-ERROR:  key not found
-CONTEXT:  PL/pgSQL function inline_code_block line 6 at RAISE
+
 DO $$
 DECLARE
   c3 icollection('text');
@@ -551,9 +1112,7 @@ BEGIN
   c3 := add(c3, 1, 'Hello World');
   RAISE NOTICE 'find(c3): %', find(c3, 2, NULL::TEXT);
 END $$;
-NOTICE:  Test 15
-ERROR:  key "2" not found
-CONTEXT:  PL/pgSQL function inline_code_block line 7 at RAISE
+
 -- Test count on uninitialized and empty
 DO $$
 DECLARE
@@ -568,9 +1127,7 @@ BEGIN
   RAISE NOTICE 'count(c3): %', count(c3);
 END
 $$;
-NOTICE:  Test 16
-NOTICE:  count(c1): 0
-NOTICE:  count(c3): 1
+
 -- Test duplicate key replacement
 DO $$
 DECLARE
@@ -581,7 +1138,7 @@ BEGIN
   val1 := add(val1, 1, 2::int4);
 END;
 $$;
-NOTICE:  Test 17
+
 -- Test value_type
 DO $$
 DECLARE
@@ -592,8 +1149,7 @@ BEGIN
   RAISE NOTICE 'The type is %', value_type(ic);
 END
 $$;
-NOTICE:  Test 18
-NOTICE:  The type is bigint
+
 -- Test mixed type error
 DO $$
 DECLARE
@@ -604,10 +1160,7 @@ BEGIN
   ic := add(ic, 2, 'hello'::text);
 END
 $$;
-NOTICE:  Test 19
-ERROR:  incompatible value data type
-DETAIL:  expecting bigint, but received text
-CONTEXT:  PL/pgSQL function inline_code_block line 7 at assignment
+
 -- Test polymorphic value with bigint
 DO $$
 DECLARE
@@ -620,9 +1173,7 @@ BEGIN
   RAISE NOTICE 'The current value type is %', pg_typeof(value(ic, null::bigint));
 END
 $$;
-NOTICE:  Test 20
-NOTICE:  The current val is 111
-NOTICE:  The current value type is bigint
+
 -- Test typmod with numeric
 DO $$
 DECLARE
@@ -631,10 +1182,7 @@ BEGIN
   RAISE NOTICE 'Test 21';
   ic[1] := 3.14::numeric;
 END $$;
-ERROR:  invalid ICOLLECTION type modifier
-LINE 3:   ic icollection('numeric(8,2)');
-             ^
-DETAIL:  the type cannot have a type modifier
+
 -- Test JSON output
 DO $$
 DECLARE
@@ -647,8 +1195,7 @@ BEGIN
   RAISE NOTICE 'json: %', to_json(ic);
 END
 $$;
-NOTICE:  Test 22
-NOTICE:  json: "{1: Hello World, 2: Hello All}"
+
 DO $$
 DECLARE
   ic   icollection('int');
@@ -660,26 +1207,19 @@ BEGIN
   RAISE NOTICE 'json: %', to_json(ic);
 END
 $$;
-NOTICE:  Test 23
-NOTICE:  json: "{1: 42, 2: 84}"
+
 -- Test table storage
 CREATE TABLE icollections_test (c1 int, c2 icollection);
+
 INSERT INTO icollections_test VALUES (1, add(null::icollection, 1, 'Hello World'));
 INSERT INTO icollections_test VALUES (2, add(null::icollection, 2, 'Hello ALL'));
+
 SELECT * FROM icollections_test ORDER BY c1;
- c1 |        c2        
-----+------------------
-  1 | {1: Hello World}
-  2 | {2: Hello ALL}
-(2 rows)
 
 DROP TABLE icollections_test;
+
 -- Test stats (icollection shares collection_stats counters)
 SELECT collection_stats_reset();
- collection_stats_reset 
-------------------------
- 
-(1 row)
 
 DO $$
 DECLARE
@@ -695,13 +1235,8 @@ BEGIN
   RAISE NOTICE 'count: ic1(%), ic2(%)', count(ic1), count(ic2);
 END
 $$;
-NOTICE:  Test 24
-NOTICE:  count: ic1(2), ic2(3)
+
 SELECT * FROM collection_stats;
- add | context_switch | delete | find | sort | exist 
------+----------------+--------+------+------+-------
-   3 |              0 |      0 |    0 |    0 |     0
-(1 row)
 
 -- Test copy semantics
 DO $$
@@ -718,39 +1253,20 @@ BEGIN
   RAISE NOTICE 'count: ic1(%), ic2(%)', count(ic1), count(ic2);
 END
 $$;
-NOTICE:  Test 25
-NOTICE:  count: ic1(2), ic2(3)
+
 -- Test JSON parse errors
 SELECT '{"value_type": "text", "entries": {"1": "Hello World"}'::icollection;
-ERROR:  Invalid format
-LINE 1: SELECT '{"value_type": "text", "entries": {"1": "Hello World...
-               ^
+
 SELECT '{"value_type": "text", "entry": {"1": "Hello World"}}'::icollection;
-ERROR:  unexpected field: entry
-LINE 1: SELECT '{"value_type": "text", "entry": {"1": "Hello World"}...
-               ^
+
 SELECT '{"entries": {"1": "Hello World"}}'::icollection;
-   icollection    
-------------------
- {1: Hello World}
-(1 row)
 
 SELECT '{"entries": {"1": "Hello World"}, "value_type": "text"}'::icollection;
-ERROR:  unexpected field start
-LINE 1: SELECT '{"entries": {"1": "Hello World"}, "value_type": "tex...
-               ^
+
 SELECT '{"value_type": "text", "entries": {"1": "Hello World", "2": 1}}'::icollection;
-      icollection       
-------------------------
- {1: Hello World, 2: 1}
-(1 row)
 
 -- Test delete via SQL
 SELECT delete('{"value_type": "pg_catalog.text", "entries": {"1": "A", "2": "B", "3": "C"}}'::icollection, 1);
-    delete    
---------------
- {2: B, 3: C}
-(1 row)
 
 -- Test nested icollection
 DO $$
@@ -766,45 +1282,26 @@ BEGIN
     arr_instance := add(arr_instance, 1, add(find(arr_instance, 1, NULL::icollection), 20, 1::int));
   END LOOP;
 END $$;
-NOTICE:  Test 26
-NOTICE:  Attempt: 1
-NOTICE:  Attempt: 2
-NOTICE:  Attempt: 3
-NOTICE:  Attempt: 4
-NOTICE:  Attempt: 5
-NOTICE:  Attempt: 6
-NOTICE:  Attempt: 7
-NOTICE:  Attempt: 8
-NOTICE:  Attempt: 9
-NOTICE:  Attempt: 10
+
 -- ============================================================
 -- Flatten/unflatten roundtrip with typed icollections
 -- ============================================================
 CREATE TABLE icollection_persist_test(id serial, ic icollection);
+
 -- bigint values
 INSERT INTO icollection_persist_test(ic)
   SELECT add(add(null::icollection, 1, 100::bigint), 2, 200::bigint);
+
 -- date values
 INSERT INTO icollection_persist_test(ic)
   SELECT add(add(null::icollection, 10, '2026-01-01'::date), 20, '2026-12-31'::date);
+
 -- icollection with NULL values
 INSERT INTO icollection_persist_test(ic)
   SELECT add(add(null::icollection, 1, 'hello'), 2, null::text);
-SELECT id, ic FROM icollection_persist_test ORDER BY id;
- id |                ic                
-----+----------------------------------
-  1 | {1: 100, 2: 200}
-  2 | {10: 01-01-2026, 20: 12-31-2026}
-  3 | {1: hello, 2: null}
-(3 rows)
 
+SELECT id, ic FROM icollection_persist_test ORDER BY id;
 SELECT id, count(ic), value_type(ic) FROM icollection_persist_test ORDER BY id;
- id | count | value_type 
-----+-------+------------
-  1 |     2 | bigint
-  2 |     2 | date
-  3 |     2 | text
-(3 rows)
 
 -- verify values survive roundtrip
 DO $$
@@ -822,7 +1319,9 @@ BEGIN
   ASSERT find(r.ic, 1) = 'hello', 'ic text roundtrip failed';
   ASSERT find(r.ic, 2) IS NULL, 'ic null roundtrip failed';
 END $$;
+
 DROP TABLE icollection_persist_test;
+
 -- ============================================================
 -- Delete all then reuse
 -- ============================================================
@@ -841,6 +1340,7 @@ BEGIN
   ASSERT count(ic) = 1, 'ic count after re-add should be 1';
   ASSERT find(ic, 99) = 'new', 'ic find after re-add failed';
 END $$;
+
 -- ============================================================
 -- Empty icollection operations
 -- ============================================================
@@ -874,6 +1374,7 @@ BEGIN
   END;
   ASSERT ok, 'ic find on empty should error';
 END $$;
+
 -- ============================================================
 -- Cast error path
 -- ============================================================
@@ -887,4 +1388,3 @@ BEGIN
 EXCEPTION WHEN datatype_mismatch THEN
   RAISE NOTICE 'ic cast error caught';
 END $$;
-NOTICE:  ic cast error caught
