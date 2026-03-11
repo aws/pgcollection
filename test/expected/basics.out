@@ -1896,3 +1896,54 @@ BEGIN
   ASSERT find(ic, 2) = 'y', 'ic other key intact';
 END;
 $$;
+-- ============================================================
+-- delete(collection, lo, hi) — range delete
+-- ============================================================
+DO
+$$
+DECLARE
+  c collection;
+BEGIN
+  c['a'] := '1'; c['b'] := '2'; c['c'] := '3'; c['d'] := '4'; c['e'] := '5';
+  c := delete(c, 'b', 'd');
+  ASSERT count(c) = 2, 'range delete count';
+  ASSERT exist(c, 'a') AND exist(c, 'e'), 'endpoints survive';
+  ASSERT NOT exist(c, 'b') AND NOT exist(c, 'c') AND NOT exist(c, 'd'), 'range deleted';
+END;
+$$;
+-- delete(collection, lo, hi) — lo/hi don't exist as keys
+DO
+$$
+DECLARE
+  c collection;
+BEGIN
+  c['a'] := '1'; c['c'] := '3'; c['e'] := '5'; c['g'] := '7';
+  c := delete(c, 'b', 'f');
+  ASSERT count(c) = 2, 'non-existent bounds';
+  ASSERT exist(c, 'a') AND exist(c, 'g'), 'outside range survives';
+END;
+$$;
+-- delete(icollection, lo, hi) — range delete
+DO
+$$
+DECLARE
+  ic icollection('text');
+BEGIN
+  ic[1] := 'one'; ic[5] := 'five'; ic[10] := 'ten'; ic[15] := 'fifteen'; ic[20] := 'twenty';
+  ic := delete(ic, 5::bigint, 15::bigint);
+  ASSERT count(ic) = 2, 'ic range delete count';
+  ASSERT exist(ic, 1) AND exist(ic, 20), 'ic endpoints survive';
+END;
+$$;
+-- delete(icollection, lo, hi) — negative keys
+DO
+$$
+DECLARE
+  ic icollection('text');
+BEGIN
+  ic[-10] := 'a'; ic[-5] := 'b'; ic[0] := 'c'; ic[5] := 'd'; ic[10] := 'e';
+  ic := delete(ic, (-5)::bigint, 5::bigint);
+  ASSERT count(ic) = 2, 'negative range count';
+  ASSERT exist(ic, -10) AND exist(ic, 10), 'negative range endpoints';
+END;
+$$;

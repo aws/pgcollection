@@ -614,6 +614,7 @@ Both Oracle and pgcollection raise `NO_DATA_FOUND` when accessing a non-existent
 | `v.COUNT` | `count(v)` | `count(v)` |
 | `v.EXISTS('key')` | `exist(v, 'key')` | `exist(v, 42)` |
 | `v.DELETE('key')` | `v := delete(v, 'key')` | `v := delete(v, 42)` |
+| `v.DELETE(lo, hi)` | `v := delete(v, lo, hi)` | `v := delete(v, lo, hi)` |
 | `v.DELETE` (all) | `v := delete(v)` | `v := delete(v)` |
 | `v.FIRST` | `first_key(v)` | `first_key(v)` |
 | `v.LAST` | `last_key(v)` | `last_key(v)` |

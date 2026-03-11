@@ -838,3 +838,82 @@ BEGIN
   ASSERT find(ic, 1, NULL::int4) = 999, 'final refill';
 END;
 $$;
+
+
+-- ============================================================
+-- Test 31: delete(collection, lo, hi) — edge cases
+-- ============================================================
+
+-- lo > hi is a no-op
+DO
+$$
+DECLARE
+  c collection;
+BEGIN
+  c['a'] := '1'; c['b'] := '2'; c['c'] := '3';
+  c := delete(c, 'd', 'a');
+  ASSERT count(c) = 3, 'lo>hi no-op';
+END;
+$$;
+
+-- lo = hi deletes single key
+DO
+$$
+DECLARE
+  c collection;
+BEGIN
+  c['a'] := '1'; c['b'] := '2'; c['c'] := '3';
+  c := delete(c, 'b', 'b');
+  ASSERT count(c) = 2, 'lo=hi single delete';
+  ASSERT NOT exist(c, 'b'), 'lo=hi key gone';
+END;
+$$;
+
+-- NULL lo or hi is a no-op
+DO
+$$
+DECLARE
+  c collection;
+BEGIN
+  c['a'] := '1'; c['b'] := '2';
+  c := delete(c, NULL::text, 'z');
+  ASSERT count(c) = 2, 'null lo no-op';
+  c := delete(c, 'a', NULL::text);
+  ASSERT count(c) = 2, 'null hi no-op';
+END;
+$$;
+
+-- range covers all keys
+DO
+$$
+DECLARE
+  c collection;
+BEGIN
+  c['a'] := '1'; c['b'] := '2'; c['c'] := '3';
+  c := delete(c, 'a', 'z');
+  ASSERT count(c) = 0, 'range covers all';
+END;
+$$;
+
+-- range on empty collection
+DO
+$$
+DECLARE
+  c collection;
+BEGIN
+  c := delete(c, 'a', 'z');
+  ASSERT count(c) = 0, 'range on empty';
+END;
+$$;
+
+-- icollection lo > hi is a no-op
+DO
+$$
+DECLARE
+  ic icollection('text');
+BEGIN
+  ic[1] := 'a'; ic[2] := 'b'; ic[3] := 'c';
+  ic := delete(ic, 10::bigint, 1::bigint);
+  ASSERT count(ic) = 3, 'ic lo>hi no-op';
+END;
+$$;

@@ -35,6 +35,7 @@ PG_FUNCTION_INFO_V1(icollection_exist);
 PG_FUNCTION_INFO_V1(icollection_count);
 PG_FUNCTION_INFO_V1(icollection_delete);
 PG_FUNCTION_INFO_V1(icollection_delete_all);
+PG_FUNCTION_INFO_V1(icollection_delete_range);
 PG_FUNCTION_INFO_V1(icollection_first);
 PG_FUNCTION_INFO_V1(icollection_last);
 PG_FUNCTION_INFO_V1(icollection_next);
@@ -309,6 +310,60 @@ icollection_delete_all(PG_FUNCTION_ARGS)
 	hdr->current = NULL;
 	hdr->flat_size = 0;
 
+	stats.delete++;
+	pgstat_report_wait_end();
+
+	PG_RETURN_DATUM(EOHPGetRWDatum(&hdr->hdr));
+}
+
+/*
+ * icollection_delete_range
+ *		Delete all entries with keys between lo and hi inclusive
+ */
+Datum
+icollection_delete_range(PG_FUNCTION_ARGS)
+{
+	ICollectionHeader *hdr;
+	icollection *item;
+	icollection *tmp;
+	int64		lo;
+	int64		hi;
+
+	if (PG_ARGISNULL(1) || PG_ARGISNULL(2))
+		PG_RETURN_DATUM(EOHPGetRWDatum(
+			&(fetch_icollection(fcinfo, 0))->hdr));
+
+	hdr = fetch_icollection(fcinfo, 0);
+
+	pgstat_report_wait_start(collection_we_delete);
+
+	lo = PG_GETARG_INT64(1);
+	hi = PG_GETARG_INT64(2);
+
+	if (lo <= hi && hdr->head)
+	{
+		HASH_ITER(hh, hdr->head, item, tmp)
+		{
+			if (item->key >= lo && item->key <= hi)
+			{
+				if (item == hdr->current)
+					hdr->current = item->hh.next;
+				ICOLLECTION_HASH_DELETE(hdr->head, item);
+				if (!item->isnull && item->value && !hdr->value_byval)
+					pfree(DatumGetPointer(item->value));
+				pfree(item);
+			}
+		}
+
+		if (HASH_COUNT(hdr->head) == 0)
+		{
+			HASH_CLEAR(hh, hdr->head);
+			hdr->head = NULL;
+			hdr->current = NULL;
+		}
+	}
+
+	hdr->flat_size = 0;
 	stats.delete++;
 	pgstat_report_wait_end();
 

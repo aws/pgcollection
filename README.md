@@ -95,6 +95,7 @@ CREATE EXTENSION collection;
 | `v.COUNT` | `count(v)` |
 | `v.EXISTS('key')` | `exist(v, 'key')` |
 | `v.DELETE('key')` | `v := delete(v, 'key')` |
+| `v.DELETE(lo, hi)` | `v := delete(v, lo, hi)` |
 | `v.DELETE` (all) | `v := delete(v)` |
 | `v.FIRST` / `v.LAST` | `first_key(v)` / `last_key(v)` |
 | `v.NEXT(k)` / `v.PRIOR(k)` | `next_key(v, k)` / `prev_key(v, k)` |

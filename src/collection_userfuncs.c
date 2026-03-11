@@ -41,6 +41,7 @@ PG_FUNCTION_INFO_V1(collection_find);
 PG_FUNCTION_INFO_V1(collection_exist);
 PG_FUNCTION_INFO_V1(collection_delete);
 PG_FUNCTION_INFO_V1(collection_delete_all);
+PG_FUNCTION_INFO_V1(collection_delete_range);
 PG_FUNCTION_INFO_V1(collection_sort);
 PG_FUNCTION_INFO_V1(collection_copy);
 PG_FUNCTION_INFO_V1(collection_key);
@@ -304,6 +305,65 @@ collection_delete_all(PG_FUNCTION_ARGS)
 	colhdr->current = NULL;
 	colhdr->flat_size = 0;
 
+	stats.delete++;
+	pgstat_report_wait_end();
+
+	PG_RETURN_DATUM(EOHPGetRWDatum(&colhdr->hdr));
+}
+
+Datum
+collection_delete_range(PG_FUNCTION_ARGS)
+{
+	CollectionHeader *colhdr;
+	collection *item;
+	collection *tmp;
+	char	   *lo_key;
+	char	   *hi_key;
+	Oid			collation;
+
+	if (PG_ARGISNULL(1) || PG_ARGISNULL(2))
+		PG_RETURN_DATUM(EOHPGetRWDatum(
+			&(fetch_collection(fcinfo, 0))->hdr));
+
+	colhdr = fetch_collection(fcinfo, 0);
+
+	pgstat_report_wait_start(collection_we_delete);
+
+	lo_key = text_to_cstring(PG_GETARG_TEXT_PP(1));
+	hi_key = text_to_cstring(PG_GETARG_TEXT_PP(2));
+	collation = PG_GET_COLLATION();
+
+	/* lo > hi is a no-op */
+	if (varstr_cmp(lo_key, strlen(lo_key), hi_key, strlen(hi_key),
+				   collation) <= 0 && colhdr->head)
+	{
+		HASH_ITER(hh, colhdr->head, item, tmp)
+		{
+			if (varstr_cmp(item->key, strlen(item->key),
+						   lo_key, strlen(lo_key), collation) >= 0 &&
+				varstr_cmp(item->key, strlen(item->key),
+						   hi_key, strlen(hi_key), collation) <= 0)
+			{
+				if (item == colhdr->current)
+					colhdr->current = item->hh.next;
+				HASH_DEL(colhdr->head, item);
+				if (item->key)
+					pfree(item->key);
+				if (!item->isnull && item->value && !colhdr->value_byval)
+					pfree(DatumGetPointer(item->value));
+				pfree(item);
+			}
+		}
+
+		if (HASH_COUNT(colhdr->head) == 0)
+		{
+			HASH_CLEAR(hh, colhdr->head);
+			colhdr->head = NULL;
+			colhdr->current = NULL;
+		}
+	}
+
+	colhdr->flat_size = 0;
 	stats.delete++;
 	pgstat_report_wait_end();
 
