@@ -185,16 +185,21 @@ void		collection_flatten_into(ExpandedObjectHeader *eohptr,
 									void *result, Size allocated_size);
 
 /*
- * Hash operation macros for integer-keyed collections
+ * Hash operation macros for integer-keyed collections.
+ *
+ * uthash's HASH_FIND_INT / HASH_ADD_INT / HASH_REPLACE_INT use sizeof(int),
+ * which is 4 bytes.  icollection keys are int64 (8 bytes), so we must use
+ * the generic HASH_FIND / HASH_ADD / HASH_REPLACE with sizeof(int64) to
+ * hash and compare the full key.
  */
 #define ICOLLECTION_HASH_FIND(head, key_int_ptr, item) \
-	HASH_FIND_INT(head, key_int_ptr, item)
+	HASH_FIND(hh, head, key_int_ptr, sizeof(int64), item)
 
 #define ICOLLECTION_HASH_ADD(head, key_field, item) \
-	HASH_ADD_INT(head, key_field, item)
+	HASH_ADD(hh, head, key_field, sizeof(int64), item)
 
 #define ICOLLECTION_HASH_REPLACE(head, key_field, item, replaced) \
-	HASH_REPLACE_INT(head, key_field, item, replaced)
+	HASH_REPLACE(hh, head, key_field, sizeof(int64), item, replaced)
 
 #define ICOLLECTION_HASH_DELETE(head, item) \
 	HASH_DELETE(hh, head, item)
