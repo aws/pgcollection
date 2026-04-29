@@ -70,6 +70,53 @@ Both `collection` (text-keyed) and `icollection` (integer-keyed) support the sam
 | `to_table(icollection, anyelement)` | `TABLE(bigint, anyelement)` | Returns all keys and values as anyelement in a result set |
 | `value_type(icollection)` | `regtype` | Returns the data type of the elements within the icollection |
 
+## Array Interoperability
+
+These functions convert between PostgreSQL arrays and icollections.
+
+| Function | Return Type | Description |
+|---|---|---|
+| `to_icollection(anyarray)` | `icollection` | Converts a 1-D array to an icollection with 1-based keys |
+| `to_array(icollection)` | `text[]` | Converts an icollection to a text array ordered by key; gaps become NULLs |
+| `to_array(icollection, anyelement)` | `anyarray` | Converts an icollection to a typed array ordered by key; gaps become NULLs |
+
+### Assignment Casts
+
+Assignment casts are registered for common array types, allowing direct assignment in PL/pgSQL:
+
+```sql
+DECLARE v icollection;
+BEGIN
+  v := ARRAY[1, 2, 3];          -- int[] cast
+  v := ARRAY['a', 'b', 'c'];    -- text[] cast
+END;
+```
+
+Supported cast types: `int[]`, `bigint[]`, `numeric[]`, `text[]`, `boolean[]`, `float8[]`, `timestamp[]`, `timestamptz[]`.
+
+For other array types, use `to_icollection()` explicitly:
+
+```sql
+v := to_icollection(ARRAY['2024-01-01']::date[]);
+```
+
+### BULK COLLECT Pattern
+
+`to_icollection` enables Oracle-style BULK COLLECT INTO migration:
+
+```sql
+-- Oracle:  SELECT id BULK COLLECT INTO v_ids FROM employees;
+-- pgcollection:
+v_ids := to_icollection(ARRAY(SELECT id FROM employees));
+```
+
+### Notes
+
+- `to_icollection` rejects multidimensional arrays.
+- `to_array` sets the array lower bound to the collection's minimum key.
+- `to_array` requires keys within the 32-bit integer range.
+- Sparse key ranges (e.g., keys 1 and 1,000,000) produce large arrays with NULL gaps. Very large ranges are rejected.
+
 ## Statistics Functions
 
 | Function / View | Description |

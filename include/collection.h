@@ -370,6 +370,8 @@ extern uint32 collection_we_fetch;
 extern uint32 collection_we_assign;
 extern uint32 collection_we_input;
 extern uint32 collection_we_output;
+extern uint32 collection_we_from_array;
+extern uint32 collection_we_to_array;
 
 
 

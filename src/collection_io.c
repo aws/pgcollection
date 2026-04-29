@@ -57,6 +57,8 @@ uint32		collection_we_fetch;
 uint32		collection_we_assign;
 uint32		collection_we_input;
 uint32		collection_we_output;
+uint32		collection_we_from_array;
+uint32		collection_we_to_array;
 
 Datum
 collection_in(PG_FUNCTION_ARGS)

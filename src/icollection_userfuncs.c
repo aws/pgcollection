@@ -22,6 +22,7 @@
 #include "funcapi.h"
 #include "parser/parse_coerce.h"
 #include "pgstat.h"
+#include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/wait_event.h"
 #include "utils/datum.h"
@@ -53,6 +54,8 @@ PG_FUNCTION_INFO_V1(icollection_next_key);
 PG_FUNCTION_INFO_V1(icollection_prev_key);
 PG_FUNCTION_INFO_V1(icollection_first_key);
 PG_FUNCTION_INFO_V1(icollection_last_key);
+PG_FUNCTION_INFO_V1(icollection_from_array);
+PG_FUNCTION_INFO_V1(icollection_to_array);
 
 /* Forward declaration */
 static int	icollection_by_key(const struct icollection *a, const struct icollection *b);
@@ -789,4 +792,191 @@ icollection_last_key(PG_FUNCTION_ARGS)
 	item = (icollection *) ELMT_FROM_HH(icolhdr->head->hh.tbl, icolhdr->head->hh.tbl->tail);
 
 	PG_RETURN_INT64(item->key);
+}
+
+/*
+ * icollection_from_array
+ *		Convert a PostgreSQL array to an icollection with 1-based keys.
+ *		NULL array elements are stored as NULL-valued entries.
+ */
+Datum
+icollection_from_array(PG_FUNCTION_ARGS)
+{
+	ArrayType  *arr;
+	ICollectionHeader *hdr;
+	MemoryContext oldcxt;
+	Oid			elemtype;
+	int16		elemlen;
+	bool		elembyval;
+	char		elemalign;
+	Datum	   *elems;
+	bool	   *nulls;
+	int			nelems;
+	int			i;
+
+	if (PG_ARGISNULL(0))
+		PG_RETURN_NULL();
+
+	arr = PG_GETARG_ARRAYTYPE_P(0);
+
+	if (ARR_NDIM(arr) > 1)
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("cannot convert multidimensional array to icollection")));
+
+	pgstat_report_wait_start(collection_we_from_array);
+
+	elemtype = ARR_ELEMTYPE(arr);
+
+	get_typlenbyvalalign(elemtype, &elemlen, &elembyval, &elemalign);
+	deconstruct_array(arr, elemtype, elemlen, elembyval, elemalign,
+					  &elems, &nulls, &nelems);
+
+	hdr = construct_empty_icollection(CurrentMemoryContext);
+
+	if (nelems == 0)
+	{
+		pgstat_report_wait_end();
+		PG_RETURN_DATUM(EOHPGetRWDatum(&hdr->hdr));
+	}
+
+	oldcxt = MemoryContextSwitchTo(hdr->hdr.eoh_context);
+
+	hdr->value_type = elemtype;
+	hdr->value_type_len = elemlen;
+	hdr->value_byval = elembyval;
+
+	for (i = 0; i < nelems; i++)
+	{
+		icollection *item;
+
+		item = (icollection *) palloc(sizeof(icollection));
+		item->key = (int64) (i + 1);
+		item->isnull = nulls[i];
+		if (!nulls[i])
+			item->value = datumCopy(elems[i], elembyval, elemlen);
+		else
+			item->value = (Datum) 0;
+
+		/* Keys are sequential 1..N, so no replacement is possible */
+		ICOLLECTION_HASH_ADD(hdr->head, key, item);
+	}
+
+	hdr->current = hdr->head;
+
+	MemoryContextSwitchTo(oldcxt);
+
+	pgstat_report_wait_end();
+
+	PG_RETURN_DATUM(EOHPGetRWDatum(&hdr->hdr));
+}
+
+/*
+ * icollection_to_array
+ *		Convert an icollection to a PostgreSQL array ordered by key.
+ *		Gaps between keys become NULL elements.  The array lower bound
+ *		is set to the collection's minimum key.
+ *
+ *		If the collection is empty, returns an empty array of the
+ *		requested return type (or text[] by default).
+ */
+Datum
+icollection_to_array(PG_FUNCTION_ARGS)
+{
+	ICollectionHeader *hdr;
+	Oid			elemtype;
+	int16		elemlen;
+	bool		elembyval;
+	char		elemalign;
+	int64		min_key;
+	int64		max_key;
+	int64		nelems;
+	Datum	   *elems;
+	bool	   *nulls;
+	icollection *cur;
+	ArrayType  *result;
+	int			dims[1];
+	int			lbs[1];
+
+	if (PG_ARGISNULL(0))
+		PG_RETURN_NULL();
+
+	hdr = fetch_icollection(fcinfo, 0);
+
+	/*
+	 * Determine element type.  Use the collection's value_type if set,
+	 * otherwise fall back to text.
+	 */
+	elemtype = (hdr->value_type != InvalidOid) ? hdr->value_type : TEXTOID;
+
+	if (hdr->head == NULL)
+		PG_RETURN_POINTER(construct_empty_array(elemtype));
+
+	pgstat_report_wait_start(collection_we_to_array);
+
+	/* Find min/max keys with a single pass; no sorting needed */
+	min_key = hdr->head->key;
+	max_key = hdr->head->key;
+	for (cur = hdr->head->hh.next; cur != NULL; cur = cur->hh.next)
+	{
+		if (cur->key < min_key)
+			min_key = cur->key;
+		if (cur->key > max_key)
+			max_key = cur->key;
+	}
+
+	/*
+	 * Guard against overflow.  PG array dims and lbs are int32, so keys must
+	 * fit.  Check before subtracting to avoid int64 wraparound.
+	 */
+	if (min_key < PG_INT32_MIN || max_key > PG_INT32_MAX)
+		ereport(ERROR,
+				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+				 errmsg("icollection key range too large for array conversion"),
+				 errdetail("Keys must be within the 32-bit integer range.")));
+
+	nelems = max_key - min_key + 1;
+
+	if (nelems > (int64) MaxAllocSize / (int64) sizeof(Datum))
+		ereport(ERROR,
+				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+				 errmsg("icollection key range too large for array conversion"),
+				 errdetail("Key range %lld..%lld requires %lld elements.",
+						   (long long) min_key, (long long) max_key,
+						   (long long) nelems)));
+
+	get_typlenbyvalalign(elemtype, &elemlen, &elembyval, &elemalign);
+
+	elems = (Datum *) palloc0((Size) nelems * sizeof(Datum));
+	nulls = (bool *) palloc((Size) nelems * sizeof(bool));
+	memset(nulls, true, (Size) nelems * sizeof(bool));
+
+	/* Fill in present values */
+	for (cur = hdr->head; cur != NULL; cur = cur->hh.next)
+	{
+		int64		idx = cur->key - min_key;
+
+		Assert(idx >= 0 && idx < nelems);
+
+		if (cur->isnull)
+			nulls[idx] = true;
+		else
+		{
+			elems[idx] = cur->value;
+			nulls[idx] = false;
+		}
+	}
+
+	dims[0] = (int) nelems;
+	lbs[0] = (int) min_key;
+
+	result = construct_md_array(elems, nulls, 1, dims, lbs,
+								elemtype, elemlen, elembyval, elemalign);
+
+	pfree(elems);
+	pfree(nulls);
+
+	pgstat_report_wait_end();
+
+	PG_RETURN_ARRAYTYPE_P(result);
 }

@@ -1,5 +1,5 @@
 EXTENSION = collection
-EXTVERSION = 2.0.0
+EXTVERSION = 2.1.0
 
 PGFILEDESC = "pgcollection - collection data type for PostgreSQL"
 
@@ -18,7 +18,7 @@ OBJS = src/collection.o \
 		src/icollection_subs.o \
 		src/icollection_parse.o
 
-REGRESS = basics subscript iteration srf persistence inout_params mixed_types stress edge_cases
+REGRESS = basics subscript iteration srf persistence inout_params mixed_types stress edge_cases array_interop
 REGRESS_OPTS = --inputdir=test --outputdir=test --load-extension=collection
 
 EXTRA_CLEAN = test/results/ test/regression.diffs test/regression.out \

@@ -437,6 +437,60 @@ BEGIN
 END $$;
 ```
 
+## BULK COLLECT INTO
+
+Oracle's `BULK COLLECT INTO` loads query results directly into a PLS_INTEGER-indexed Associative Array. pgcollection supports this pattern using `to_icollection()` with an array subquery.
+
+### Oracle
+```sql
+DECLARE
+  TYPE id_arr IS TABLE OF NUMBER INDEX BY PLS_INTEGER;
+  v_ids  id_arr;
+BEGIN
+  SELECT employee_id BULK COLLECT INTO v_ids FROM employees WHERE department_id = 10;
+
+  DBMS_OUTPUT.PUT_LINE('Count: ' || v_ids.COUNT);
+  DBMS_OUTPUT.PUT_LINE('First: ' || v_ids(1));
+END;
+```
+
+### pgcollection
+```sql
+DO $$
+DECLARE
+  v_ids  icollection;
+BEGIN
+  v_ids := to_icollection(ARRAY(SELECT employee_id FROM employees WHERE department_id = 10));
+
+  RAISE NOTICE 'Count: %', count(v_ids);
+  RAISE NOTICE 'First: %', v_ids[1]::int;
+END $$;
+```
+
+The assignment cast also allows a shorter form without the explicit `to_icollection()` call:
+
+```sql
+v_ids := ARRAY(SELECT employee_id FROM employees WHERE department_id = 10);
+```
+
+To convert back to an array (e.g., for passing to a function that expects an array):
+
+```sql
+DECLARE
+  v_ids  icollection;
+  arr    int[];
+BEGIN
+  v_ids := to_icollection(ARRAY(SELECT employee_id FROM employees));
+  -- ... process v_ids ...
+  arr := to_array(v_ids, 0);  -- 0 is a type hint for int[]
+END;
+```
+
+### Limitations
+
+- Oracle `BULK COLLECT INTO` supports multiple target arrays in one statement. pgcollection requires one `to_icollection()` call per column.
+- Oracle `BULK COLLECT` with `LIMIT` clause for batched fetching has no direct equivalent. Use `LIMIT`/`OFFSET` in the subquery instead.
+
 ## FORALL Bulk DML
 
 Oracle's `FORALL` statement performs bulk DML using Associative Array indices. pgcollection achieves the same result using `to_table()` in a single SQL statement.
