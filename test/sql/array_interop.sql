@@ -827,3 +827,86 @@ END
 $$;
 
 DROP FUNCTION _test_inout;
+
+-- ============================================================
+-- to_array subscript access tests (crash fix: type mismatch
+-- between declared text[] return and actual element type)
+-- ============================================================
+
+-- int array: subscript access on single-arg to_array (returns text[])
+SELECT (to_array(to_icollection(ARRAY[12,0,0,0]::int[])))[1];
+SELECT (to_array(to_icollection(ARRAY[12,0,0,0]::int[])))[2];
+SELECT (to_array(to_icollection(ARRAY[12,0,0,0]::int[])))[4];
+
+-- int array: subscript on polymorphic overload (returns int[])
+SELECT (to_array(to_icollection(ARRAY[12,0,0,0]::int[]), 0))[1];
+SELECT (to_array(to_icollection(ARRAY[12,0,0,0]::int[]), 0))[2];
+
+-- bigint array: subscript on single-arg to_array
+SELECT (to_array(to_icollection(ARRAY[100000000000, 200000000000]::bigint[])))[1];
+
+-- bigint array: subscript on polymorphic overload
+SELECT (to_array(to_icollection(ARRAY[100000000000, 200000000000]::bigint[]), 0::bigint))[2];
+
+-- boolean: subscript on single-arg to_array
+SELECT (to_array(to_icollection(ARRAY[true, false, true])))[2];
+
+-- float8: subscript on single-arg to_array
+SELECT (to_array(to_icollection(ARRAY[1.1, 2.2, 3.3]::float8[])))[3];
+
+-- text array: subscript (no conversion needed, already text)
+SELECT (to_array(to_icollection(ARRAY['hello','world'])))[1];
+
+-- verify pg_typeof for single-arg overload subscript is text
+SELECT pg_typeof((to_array(to_icollection(ARRAY[42,99]::int[])))[1]);
+
+-- verify pg_typeof for polymorphic overload subscript is integer
+SELECT pg_typeof((to_array(to_icollection(ARRAY[42,99]::int[]), 0))[1]);
+
+-- subscript with gaps (NULL elements from sparse keys)
+DO $$
+DECLARE
+  v icollection;
+  arr text[];
+BEGIN
+  RAISE NOTICE 'Test 56: subscript with gaps';
+  v := add(v, 1, 100);
+  v := add(v, 3, 300);
+  arr := to_array(v);
+  RAISE NOTICE 'arr[1]: %', arr[1];
+  RAISE NOTICE 'arr[2]: %', arr[2];
+  RAISE NOTICE 'arr[3]: %', arr[3];
+END
+$$;
+
+-- subscript on to_array with zero values (original crash case)
+DO $$
+DECLARE
+  arr text[];
+BEGIN
+  RAISE NOTICE 'Test 57: subscript zero values';
+  arr := to_array(to_icollection(ARRAY[0,0,0]::int[]));
+  RAISE NOTICE 'arr[1]: %', arr[1];
+  RAISE NOTICE 'arr[2]: %', arr[2];
+  RAISE NOTICE 'arr[3]: %', arr[3];
+END
+$$;
+
+-- subscript on polymorphic overload with zero values
+DO $$
+DECLARE
+  arr int[];
+BEGIN
+  RAISE NOTICE 'Test 58: polymorphic subscript zero values';
+  arr := to_array(to_icollection(ARRAY[0,0,0]::int[]), 0);
+  RAISE NOTICE 'arr[1]: %', arr[1];
+  RAISE NOTICE 'arr[2]: %', arr[2];
+  RAISE NOTICE 'arr[3]: %', arr[3];
+END
+$$;
+
+-- date: subscript on single-arg to_array (must convert to text)
+SELECT (to_array(to_icollection(ARRAY['2024-01-01','2024-06-15']::date[])))[1];
+
+-- numeric: subscript on single-arg to_array
+SELECT (to_array(to_icollection(ARRAY[3.14159, 2.71828]::numeric[])))[2];

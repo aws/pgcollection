@@ -885,6 +885,7 @@ icollection_to_array(PG_FUNCTION_ARGS)
 {
 	ICollectionHeader *hdr;
 	Oid			elemtype;
+	Oid			src_type;
 	int16		elemlen;
 	bool		elembyval;
 	char		elemalign;
@@ -897,6 +898,9 @@ icollection_to_array(PG_FUNCTION_ARGS)
 	ArrayType  *result;
 	int			dims[1];
 	int			lbs[1];
+	bool		need_cast;
+	Oid			outfunc;
+	bool		typIsVarlena;
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
@@ -904,15 +908,27 @@ icollection_to_array(PG_FUNCTION_ARGS)
 	hdr = fetch_icollection(fcinfo, 0);
 
 	/*
-	 * Determine element type.  Use the collection's value_type if set,
-	 * otherwise fall back to text.
+	 * Determine the output element type.  The single-argument overload
+	 * returns text[], so we must convert values to text.  The two-argument
+	 * polymorphic overload returns the collection's native value type.
 	 */
-	elemtype = (hdr->value_type != InvalidOid) ? hdr->value_type : TEXTOID;
+	src_type = (hdr->value_type != InvalidOid) ? hdr->value_type : TEXTOID;
+
+	if (PG_NARGS() == 1)
+		elemtype = TEXTOID;
+	else
+		elemtype = src_type;
+
+	need_cast = (elemtype == TEXTOID && src_type != TEXTOID);
 
 	if (hdr->head == NULL)
 		PG_RETURN_POINTER(construct_empty_array(elemtype));
 
 	pgstat_report_wait_start(collection_we_to_array);
+
+	/* Look up source type output function if we need to cast to text */
+	if (need_cast)
+		getTypeOutputInfo(src_type, &outfunc, &typIsVarlena);
 
 	/* Find min/max keys with a single pass; no sorting needed */
 	min_key = hdr->head->key;
@@ -962,7 +978,15 @@ icollection_to_array(PG_FUNCTION_ARGS)
 			nulls[idx] = true;
 		else
 		{
-			elems[idx] = cur->value;
+			if (need_cast)
+			{
+				char	   *str = OidOutputFunctionCall(outfunc, cur->value);
+
+				elems[idx] = CStringGetTextDatum(str);
+				pfree(str);
+			}
+			else
+				elems[idx] = cur->value;
 			nulls[idx] = false;
 		}
 	}
