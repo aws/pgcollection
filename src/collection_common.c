@@ -293,10 +293,11 @@ collection_srf_values_to_table(FunctionCallInfo fcinfo,
 
 		get_call_result_type(fcinfo, &rettype, NULL);
 
-		if (!can_coerce_type(1, &rettype, &value_type, COERCION_IMPLICIT))
+		if (rettype != value_type && rettype != TEXTOID &&
+			!IsBinaryCoercible(value_type, rettype))
 			ereport(ERROR,
 					(errcode(ERRCODE_DATATYPE_MISMATCH),
-					 errmsg("Value type does not match the return type")));
+					 errmsg("value type does not match the return type")));
 
 		MemoryContextSwitchTo(oldcxt);
 	}
@@ -367,10 +368,11 @@ collection_srf_to_table(FunctionCallInfo fcinfo,
 
 		rettype = TupleDescAttr(rsinfo->expectedDesc, 1)->atttypid;
 
-		if (!can_coerce_type(1, &rettype, &value_type, COERCION_IMPLICIT))
+		if (rettype != value_type && rettype != TEXTOID &&
+			!IsBinaryCoercible(value_type, rettype))
 			ereport(ERROR,
 					(errcode(ERRCODE_DATATYPE_MISMATCH),
-					 errmsg("Value type does not match the return type")));
+					 errmsg("value type does not match the return type")));
 
 		ctx->tupdesc = (void *) CreateTupleDescCopy(rsinfo->expectedDesc);
 		funcctx->user_fctx = ctx;
@@ -541,8 +543,9 @@ collection_cast_common(CollectionHeaderCommon * hdr, Oid typmod,
 
 /*
  * collection_coerce_value
- *		Shared 3-tier value coercion used by find, value, and subscript fetch.
- *		1) If rettype can coerce to value_type, return native datumCopy.
+ *		Shared value coercion used by find, value, and subscript fetch.
+ *		1) If rettype matches value_type or is binary-coercible, return
+ *		   native datumCopy.
  *		2) If rettype is TEXTOID, convert via output function.
  *		3) Otherwise error.
  */
@@ -551,7 +554,7 @@ collection_coerce_value(Datum value, Oid value_type,
 						bool value_byval, int16 value_type_len,
 						Oid rettype)
 {
-	if (can_coerce_type(1, &rettype, &value_type, COERCION_IMPLICIT))
+	if (rettype == value_type || IsBinaryCoercible(value_type, rettype))
 		return datumCopy(value, value_byval, value_type_len);
 
 	if (rettype == TEXTOID)
@@ -565,7 +568,9 @@ collection_coerce_value(Datum value, Oid value_type,
 
 	ereport(ERROR,
 			(errcode(ERRCODE_DATATYPE_MISMATCH),
-			 errmsg("Value type does not match the return type")));
+			 errmsg("cannot return %s value as %s",
+					format_type_extended(value_type, -1, 0),
+					format_type_extended(rettype, -1, 0))));
 	return (Datum) 0;			/* unreachable */
 }
 

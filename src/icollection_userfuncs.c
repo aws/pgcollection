@@ -909,17 +909,37 @@ icollection_to_array(PG_FUNCTION_ARGS)
 
 	/*
 	 * Determine the output element type.  The single-argument overload
-	 * returns text[], so we must convert values to text.  The two-argument
-	 * polymorphic overload returns the collection's native value type.
+	 * returns text[].  The two-argument polymorphic overload returns the type
+	 * indicated by get_fn_expr_rettype (the array's element type). In both
+	 * cases, if the output element type differs from the stored type, we must
+	 * convert values to text.
 	 */
 	src_type = (hdr->value_type != InvalidOid) ? hdr->value_type : TEXTOID;
 
 	if (PG_NARGS() == 1)
 		elemtype = TEXTOID;
 	else
-		elemtype = src_type;
+	{
+		Oid			rettype;
 
-	need_cast = (elemtype == TEXTOID && src_type != TEXTOID);
+		rettype = get_fn_expr_rettype(fcinfo->flinfo);
+		elemtype = get_element_type(rettype);
+		if (!OidIsValid(elemtype))
+			elemtype = TEXTOID;
+	}
+
+	need_cast = (elemtype != src_type);
+
+	if (need_cast && elemtype != TEXTOID && !IsBinaryCoercible(src_type, elemtype))
+		ereport(ERROR,
+				(errcode(ERRCODE_DATATYPE_MISMATCH),
+				 errmsg("cannot return %s array as %s array",
+						format_type_extended(src_type, -1, 0),
+						format_type_extended(elemtype, -1, 0))));
+
+	/* Binary-coercible types don't need conversion */
+	if (need_cast && IsBinaryCoercible(src_type, elemtype))
+		need_cast = false;
 
 	if (hdr->head == NULL)
 		PG_RETURN_POINTER(construct_empty_array(elemtype));

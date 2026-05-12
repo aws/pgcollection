@@ -233,3 +233,105 @@ BEGIN
   ASSERT ic::text = ic2::text,
     format('ic copy with nulls failed: orig=%s copy=%s', ic, ic2);
 END $$;
+----------------------------------------------------------------------
+-- Type coercion boundary tests
+----------------------------------------------------------------------
+-- Mismatched type via value() is rejected (collection)
+DO $$
+DECLARE
+  c collection;
+  v bigint;
+BEGIN
+  c := add(c, 'k', 12345.67::numeric);
+  c := first(c);
+  v := value(c, 0::bigint);
+  RAISE NOTICE 'SHOULD NOT REACH: %', v;
+EXCEPTION WHEN datatype_mismatch THEN
+  RAISE NOTICE 'col numeric->bigint correctly rejected';
+END $$;
+NOTICE:  col numeric->bigint correctly rejected
+-- Mismatched type via value() is rejected (icollection)
+DO $$
+DECLARE
+  ic icollection;
+  v bigint;
+BEGIN
+  ic := add(ic, 1, 12345.67::numeric);
+  ic := first(ic);
+  v := value(ic, 0::bigint);
+  RAISE NOTICE 'SHOULD NOT REACH: %', v;
+EXCEPTION WHEN datatype_mismatch THEN
+  RAISE NOTICE 'icol numeric->bigint correctly rejected';
+END $$;
+NOTICE:  icol numeric->bigint correctly rejected
+-- Mismatched type via find() is rejected
+DO $$
+DECLARE
+  c collection;
+  v int4;
+BEGIN
+  c := add(c, 'k', 'hello'::text);
+  v := find(c, 'k', 0::int4);
+  RAISE NOTICE 'SHOULD NOT REACH: %', v;
+EXCEPTION WHEN datatype_mismatch THEN
+  RAISE NOTICE 'col find text->int4 correctly rejected';
+END $$;
+NOTICE:  col find text->int4 correctly rejected
+DO $$
+DECLARE
+  ic icollection;
+  v int4;
+BEGIN
+  ic := add(ic, 1, 'hello'::text);
+  v := find(ic, 1, 0::int4);
+  RAISE NOTICE 'SHOULD NOT REACH: %', v;
+EXCEPTION WHEN datatype_mismatch THEN
+  RAISE NOTICE 'icol find text->int4 correctly rejected';
+END $$;
+NOTICE:  icol find text->int4 correctly rejected
+-- to_array polymorphic overload: mismatched type errors
+DO $$
+DECLARE
+  ic icollection;
+  arr bigint[];
+BEGIN
+  ic := add(ic, 1, 'hello'::text);
+  arr := to_array(ic, 0::bigint);
+  RAISE NOTICE 'SHOULD NOT REACH: %', arr;
+EXCEPTION WHEN datatype_mismatch THEN
+  RAISE NOTICE 'icol to_array text->bigint[] correctly rejected';
+END $$;
+NOTICE:  icol to_array text->bigint[] correctly rejected
+-- Retrieval as text always works (output function conversion)
+DO $$
+DECLARE
+  c collection;
+  ic icollection;
+  v text;
+BEGIN
+  c := add(c, 'k', 12345::int4);
+  c := first(c);
+  v := value(c, null::text);
+  ASSERT v = '12345', 'int4 to text should work';
+
+  ic := add(ic, 1, 99.5::float8);
+  ic := first(ic);
+  v := value(ic, null::text);
+  ASSERT v = '99.5', 'float8 to text should work';
+
+  RAISE NOTICE 'text conversion works: int4=12345, float8=99.5';
+END $$;
+NOTICE:  text conversion works: int4=12345, float8=99.5
+-- Binary-coercible types still work (text -> varchar)
+DO $$
+DECLARE
+  c collection;
+  v varchar;
+BEGIN
+  c := add(c, 'k', 'hello'::text);
+  c := first(c);
+  v := value(c, null::varchar);
+  ASSERT v = 'hello', 'text to varchar should work';
+  RAISE NOTICE 'col text->varchar: %', v;
+END $$;
+NOTICE:  col text->varchar: hello
