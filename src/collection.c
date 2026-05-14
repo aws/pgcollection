@@ -32,7 +32,7 @@
 #include "collection_config.h"
 
 #ifdef PG_MODULE_MAGIC_EXT
-PG_MODULE_MAGIC_EXT(.name = EXT_NAME,.version = EXT_VERSION);
+PG_MODULE_MAGIC_EXT(.name = EXT_NAME, .version = EXT_VERSION);
 #else
 PG_MODULE_MAGIC;
 #endif
