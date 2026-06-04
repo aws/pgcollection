@@ -18,7 +18,7 @@ OBJS = src/collection.o \
 		src/icollection_subs.o \
 		src/icollection_parse.o
 
-REGRESS = basics subscript iteration srf persistence inout_params mixed_types stress edge_cases array_interop
+REGRESS = basics subscript iteration srf persistence inout_params mixed_types stress edge_cases array_interop typemod
 REGRESS_OPTS = --inputdir=test --outputdir=test --load-extension=collection
 
 EXTRA_CLEAN = test/results/ test/regression.diffs test/regression.out \
