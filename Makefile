@@ -1,5 +1,5 @@
 EXTENSION = collection
-EXTVERSION = 2.1.2
+EXTVERSION = 2.1.3
 
 PGFILEDESC = "pgcollection - collection data type for PostgreSQL"
 

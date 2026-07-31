@@ -910,3 +910,41 @@ SELECT (to_array(to_icollection(ARRAY['2024-01-01','2024-06-15']::date[])))[1];
 
 -- numeric: subscript on single-arg to_array
 SELECT (to_array(to_icollection(ARRAY[3.14159, 2.71828]::numeric[])))[2];
+
+-- ============================================================
+-- to_array: typed NULL as the element-type carrier (no STRICT)
+-- ============================================================
+
+-- A typed NULL selects the array element type without a real value
+DO $$
+DECLARE
+  v icollection;
+  arr int[];
+BEGIN
+  RAISE NOTICE 'Test 59: to_array typed NULL carrier';
+  v := add(v, 1, 10);
+  v := add(v, 2, 20);
+  v := add(v, 3, 30);
+  arr := to_array(v, NULL::int);
+  RAISE NOTICE 'result: %', arr;
+END
+$$;
+
+-- Works for a complex composite element type without building a dummy value
+CREATE TYPE array_interop_rec AS (a int, b text);
+DO $$
+DECLARE
+  v icollection;
+  arr array_interop_rec[];
+BEGIN
+  RAISE NOTICE 'Test 60: to_array typed NULL for composite element';
+  v := add(v, 1, ROW(10, 'ten')::array_interop_rec);
+  v := add(v, 2, ROW(20, 'twenty')::array_interop_rec);
+  arr := to_array(v, NULL::array_interop_rec);
+  RAISE NOTICE 'result: %', arr;
+END
+$$;
+DROP TYPE array_interop_rec;
+
+-- A typed NULL against a NULL collection still returns NULL (arg 0 guard)
+SELECT to_array(NULL::icollection, NULL::int) IS NULL AS is_null;
