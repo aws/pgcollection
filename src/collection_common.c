@@ -105,12 +105,9 @@ char *
 collection_typmodout_common(Oid typmod)
 {
 	char       *typeName;
-	char	   *res;
 
 	typeName = DatumGetCString(DirectFunctionCall1(regtypeout, typmod));
-	res = (char*)palloc(strlen(typeName) + 5);
-	sprintf(res, "('%s')", typeName);
-	return res;
+	return psprintf("('%s')", typeName);
 }
 
 /*
