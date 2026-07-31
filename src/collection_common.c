@@ -104,7 +104,7 @@ collection_typmodin_common(ArrayType *ta, const char *type_name)
 char *
 collection_typmodout_common(Oid typmod)
 {
-	return DatumGetCString(DirectFunctionCall1(regtypeout, typmod));
+	return psprintf("('%s')", DatumGetCString(DirectFunctionCall1(regtypeout, typmod)));
 }
 
 /*
