@@ -1,0 +1,35 @@
+-- Every object the collection extension installs carries a catalog comment so
+-- an installed database is self-describing.  Each query below must return no
+-- rows; a newly added function without a COMMENT ON, or a dropped comment,
+-- makes the regression diff fail.
+-- Functions owned by the extension.
+select p.oid::regprocedure as uncommented_function
+  from pg_depend d
+  join pg_extension e on e.oid = d.refobjid and e.extname = 'collection'
+  join pg_proc p on p.oid = d.objid and d.classid = 'pg_proc'::regclass
+ where obj_description(p.oid, 'pg_proc') is null
+ order by 1;
+ uncommented_function 
+----------------------
+(0 rows)
+
+-- The two exposed types.
+select t as uncommented_type
+  from unnest(array['collection'::regtype, 'icollection'::regtype]) as t
+ where obj_description(t::oid, 'pg_type') is null
+ order by 1;
+ uncommented_type 
+------------------
+(0 rows)
+
+-- Views owned by the extension.
+select c.relname as uncommented_view
+  from pg_depend d
+  join pg_extension e on e.oid = d.refobjid and e.extname = 'collection'
+  join pg_class c on c.oid = d.objid and d.classid = 'pg_class'::regclass
+ where c.relkind = 'v' and obj_description(c.oid, 'pg_class') is null
+ order by 1;
+ uncommented_view 
+------------------
+(0 rows)
+
