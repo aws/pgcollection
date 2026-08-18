@@ -36,6 +36,10 @@ PG_CPPFLAGS += -Wno-implicit-fallthrough
 # enable a bloom filter to speed up finds
 PG_CPPFLAGS += -DHASH_BLOOM=16
 
+# Full RELRO + immediate binding: keeps the GOT and const method tables
+# read-only after load.
+PG_LDFLAGS += -Wl,-z,relro,-z,now
+
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)

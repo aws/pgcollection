@@ -56,7 +56,7 @@ expand_icollection(Datum icollectiondatum, MemoryContext parentcontext)
 		icollection *iter;
 		icollection *item;
 
-		Assert(src_hdr->collection_magic == COLLECTION_MAGIC);
+		CheckCollectionMagic(src_hdr->collection_magic);
 
 		/* Create a writable copy */
 		copyhdr = construct_empty_icollection(parentcontext);
@@ -222,7 +222,7 @@ icollection_get_flat_size(ExpandedObjectHeader *eohptr)
 	icollection *cur;
 	size_t		sz = 0;
 
-	Assert(hdr->collection_magic == COLLECTION_MAGIC);
+	CheckCollectionMagic(hdr->collection_magic);
 
 	/* Calculate size for each entry */
 	for (cur = hdr->head; cur != NULL; cur = cur->hh.next)
@@ -263,7 +263,7 @@ icollection_flatten_into(ExpandedObjectHeader *eohptr,
 	int32		num_entries;
 	icollection *cur;
 
-	Assert(hdr->collection_magic == COLLECTION_MAGIC);
+	CheckCollectionMagic(hdr->collection_magic);
 	Assert(allocated_size == hdr->flat_size);
 
 	/* Write varlena header */
@@ -381,7 +381,7 @@ DatumGetExpandedICollection(Datum d)
 	/* If it's a writable expanded icollection already, just return it */
 	if (VARATT_IS_EXTERNAL_EXPANDED(DatumGetPointer(d)))
 	{
-		Assert(((ICollectionHeader *) DatumGetEOHP(d))->collection_magic == COLLECTION_MAGIC);
+		CheckCollectionMagic(((ICollectionHeader *) DatumGetEOHP(d))->collection_magic);
 		d = expand_icollection(d, CurrentMemoryContext);
 		return (ICollectionHeader *) DatumGetEOHP(d);
 	}

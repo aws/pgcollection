@@ -61,7 +61,7 @@ expand_collection(Datum collectiondatum, MemoryContext parentcontext)
 		collection *iter;
 		collection *item;
 
-		Assert(src_colhdr->collection_magic == COLLECTION_MAGIC);
+		CheckCollectionMagic(src_colhdr->collection_magic);
 
 		/* Create a writable copy */
 		copyhdr = construct_empty_collection(parentcontext);
@@ -280,7 +280,7 @@ collection_get_flat_size(ExpandedObjectHeader *eohptr)
 	collection *cur;
 	size_t		sz = 0;
 
-	Assert(colhdr->collection_magic == COLLECTION_MAGIC);
+	CheckCollectionMagic(colhdr->collection_magic);
 
 	pgstat_report_wait_start(collection_we_flatsize);
 
@@ -320,6 +320,7 @@ collection_flatten_into(ExpandedObjectHeader *eohptr,
 	collection *cur;
 	int			location = 0;
 
+	CheckCollectionMagic(colhdr->collection_magic);
 	Assert(allocated_size == colhdr->flat_size);
 
 	pgstat_report_wait_start(collection_we_flatten);
@@ -430,7 +431,7 @@ DatumGetExpandedCollection(Datum d)
 	 */
 	if (VARATT_IS_EXTERNAL_EXPANDED(DatumGetPointer(d)))
 	{
-		Assert(((CollectionHeader *) DatumGetEOHP(d))->collection_magic == COLLECTION_MAGIC);
+		CheckCollectionMagic(((CollectionHeader *) DatumGetEOHP(d))->collection_magic);
 	}
 
 	d = expand_collection(d, CurrentMemoryContext);

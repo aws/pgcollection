@@ -41,6 +41,16 @@
 
 #define COLLECTION_MAGIC 8675309	/* ID for debugging crosschecks */
 
+/* Reject a datum whose header is not one of ours before trusting the cast. */
+static inline void
+CheckCollectionMagic(int magic)
+{
+	if (unlikely(magic != COLLECTION_MAGIC))
+		ereport(ERROR,
+				(errcode(ERRCODE_DATA_CORRUPTED),
+				 errmsg("invalid or corrupted collection object")));
+}
+
 #define VALIDATE_KEY_LENGTH(key) \
 	do { \
 		if (strlen(key) > INT16_MAX) \
