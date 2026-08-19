@@ -38,5 +38,15 @@
       "compatibility",
       "associative array",
       "key value"
-   ]
+   ],
+   "no_index": {
+      "directory": [ ".github" ],
+      "file": [
+         "AGENTS.md",
+         "CODE_OF_CONDUCT.md",
+         "CONTRIBUTING.md",
+         "GOVERNANCE.md",
+         "SECURITY.md"
+      ]
+   }
 }

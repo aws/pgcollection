@@ -22,8 +22,7 @@ REGRESS = basics subscript iteration srf persistence inout_params mixed_types st
 REGRESS_OPTS = --inputdir=test --outputdir=test --load-extension=collection
 
 EXTRA_CLEAN = test/results/ test/regression.diffs test/regression.out \
-		pgcollection-$(EXTVERSION).zip include/$(EXTENSION)_config.h \
-		META.json
+		pgcollection-$(EXTVERSION).zip include/$(EXTENSION)_config.h
 
 DATA = $(wildcard sql/*.sql)
 DATA_built = $(EXTENSION).control
