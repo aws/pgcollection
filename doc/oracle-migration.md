@@ -329,6 +329,12 @@ BEGIN
 END $$;
 ```
 
+Note that PostgreSQL does not preserve the type modifier on function or procedure
+parameters, so subscripting a parameter reports its element type as `text`. Use
+`find()` with an explicit type, or copy the parameter into a locally-typed variable,
+to read values with the declared type. See "Type modifiers and routine parameters"
+in the usage guide for details.
+
 Functions can also return collections directly:
 
 ```sql

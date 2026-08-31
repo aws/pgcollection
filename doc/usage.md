@@ -83,6 +83,34 @@ c['k'] := 42::bigint;          -- stored as bigint
 c := add(c, 'k', 42::bigint);  -- stored as bigint
 ```
 
+### Type modifiers and routine parameters
+
+The element type is carried in the type's *modifier* (the `('date')` part), not in
+its identity. PostgreSQL preserves modifiers on local variables, casts, and table
+columns, but it drops them on function and procedure parameters and return values,
+where it stores only the base type. Inside a routine body, a parameter declared
+`icollection('numeric')` is seen as a plain `icollection`, so subscripting it falls
+back to `text`:
+
+```sql
+CREATE FUNCTION f(arg icollection('numeric')) RETURNS void AS $$
+BEGIN
+  RAISE NOTICE '%', pg_typeof(arg[1]);   -- text, not numeric
+END $$ LANGUAGE plpgsql;
+```
+
+The stored values are unaffected; only the *reported* subscript type degrades to
+`text`, which forces an unnecessary conversion. To get the declared element type,
+reintroduce the modifier where it is needed. Either copy the parameter into a
+locally-typed variable, or cast at the subscript site:
+
+```sql
+DECLARE local icollection('numeric') := arg;   -- local[1] is numeric
+
+-- or, inline:
+pg_typeof((arg::icollection('numeric'))[1])     -- numeric
+```
+
 ## Iterating Over a Collection
 
 ### Iterator Functions
