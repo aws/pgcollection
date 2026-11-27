@@ -53,6 +53,7 @@ $(EXTENSION).control: $(EXTENSION).control.in
 	sed 's,EXTVERSION,$(EXTVERSION),g; s,EXTNAME,$(EXTENSION),g' $< > $@;
 
 src/collection.o: include/$(EXTENSION)_config.h
+src/collection.bc: include/$(EXTENSION)_config.h
 
 dist:
 	git archive --format zip --prefix=pgcollection-$(EXTVERSION)/ -o pgcollection-$(EXTVERSION).zip HEAD
