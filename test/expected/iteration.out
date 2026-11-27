@@ -1151,7 +1151,7 @@ BEGIN
 END;
 $$;
 NOTICE:  Iteration test 17
-NOTICE:  Size of icollection is 9893
+NOTICE:  Size of icollection is 13939
 -- next_key/prev_key boundary tests
 DO $$
 DECLARE

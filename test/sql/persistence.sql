@@ -106,3 +106,22 @@ INSERT INTO select_ic_typed(ic)
 SELECT id, ic FROM select_ic_typed ORDER BY id;
 
 DROP TABLE select_ic_typed;
+
+-- Text output must preserve quoted values, negative keys, and a stored NULL.
+DO $$
+DECLARE
+  c icollection('text');
+  restored icollection;
+  escaped text := E'quote " and backslash \\ and newline\n';
+BEGIN
+  c[-2] := escaped;
+  c[0] := NULL::text;
+  c[3] := 'null';
+  restored := (c::text)::icollection;
+  ASSERT value_type(restored) = 'text'::regtype;
+  ASSERT count(restored) = 3;
+  ASSERT restored[-2] IS NOT DISTINCT FROM escaped;
+  ASSERT exist(restored, 0) AND restored[0] IS NULL;
+  ASSERT restored[3] IS NOT DISTINCT FROM 'null';
+END
+$$;
