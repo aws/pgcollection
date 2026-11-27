@@ -1223,27 +1223,27 @@ LINE 1: SELECT add(add('{}'::icollection, 9223372036854775807, 'max'...
                        ^
 -- Test JSON parsing
 SELECT '{"value_type":"text","entries":{"1":"hello","2":"world"}}'::icollection;
-     icollection      
-----------------------
- {1: hello, 2: world}
+                                icollection                                 
+----------------------------------------------------------------------------
+ {"value_type": "pg_catalog.text", "entries": {"1": "hello", "2": "world"}}
 (1 row)
 
 SELECT '{"value_type":"int4","entries":{"10":"100","20":"200"}}'::icollection;
-    icollection     
---------------------
- {10: 100, 20: 200}
+                           icollection                            
+------------------------------------------------------------------
+ {"value_type": "integer", "entries": {"10": "100", "20": "200"}}
 (1 row)
 
 SELECT '{"entries":{"1":"default text"}}'::icollection;
-    icollection    
--------------------
- {1: default text}
+                             icollection                             
+---------------------------------------------------------------------
+ {"value_type": "pg_catalog.text", "entries": {"1": "default text"}}
 (1 row)
 
 SELECT '{"value_type":"text","entries":{"1":"value","2":null}}'::icollection;
-     icollection     
----------------------
- {1: value, 2: null}
+                               icollection                               
+-------------------------------------------------------------------------
+ {"value_type": "pg_catalog.text", "entries": {"1": "value", "2": null}}
 (1 row)
 
 SELECT count('{"value_type":"text","entries":{"1":"a","2":"b","3":"c"}}'::icollection);
@@ -1519,7 +1519,7 @@ BEGIN
 END
 $$;
 NOTICE:  Test 22
-NOTICE:  json: "{1: Hello World, 2: Hello All}"
+NOTICE:  json: "{\"value_type\": \"pg_catalog.text\", \"entries\": {\"1\": \"Hello World\", \"2\": \"Hello All\"}}"
 DO $$
 DECLARE
   ic   icollection('int');
@@ -1532,16 +1532,16 @@ BEGIN
 END
 $$;
 NOTICE:  Test 23
-NOTICE:  json: "{1: 42, 2: 84}"
+NOTICE:  json: "{\"value_type\": \"integer\", \"entries\": {\"1\": \"42\", \"2\": \"84\"}}"
 -- Test table storage
 CREATE TABLE icollections_test (c1 int, c2 icollection);
 INSERT INTO icollections_test VALUES (1, add(null::icollection, 1, 'Hello World'));
 INSERT INTO icollections_test VALUES (2, add(null::icollection, 2, 'Hello ALL'));
 SELECT * FROM icollections_test ORDER BY c1;
- c1 |        c2        
-----+------------------
-  1 | {1: Hello World}
-  2 | {2: Hello ALL}
+ c1 |                                 c2                                 
+----+--------------------------------------------------------------------
+  1 | {"value_type": "pg_catalog.text", "entries": {"1": "Hello World"}}
+  2 | {"value_type": "pg_catalog.text", "entries": {"2": "Hello ALL"}}
 (2 rows)
 
 DROP TABLE icollections_test;
@@ -1601,9 +1601,9 @@ ERROR:  unexpected field: entry
 LINE 1: SELECT '{"value_type": "text", "entry": {"1": "Hello World"}...
                ^
 SELECT '{"entries": {"1": "Hello World"}}'::icollection;
-   icollection    
-------------------
- {1: Hello World}
+                            icollection                             
+--------------------------------------------------------------------
+ {"value_type": "pg_catalog.text", "entries": {"1": "Hello World"}}
 (1 row)
 
 SELECT '{"entries": {"1": "Hello World"}, "value_type": "text"}'::icollection;
@@ -1611,16 +1611,16 @@ ERROR:  unexpected field start
 LINE 1: SELECT '{"entries": {"1": "Hello World"}, "value_type": "tex...
                ^
 SELECT '{"value_type": "text", "entries": {"1": "Hello World", "2": 1}}'::icollection;
-      icollection       
-------------------------
- {1: Hello World, 2: 1}
+                                 icollection                                  
+------------------------------------------------------------------------------
+ {"value_type": "pg_catalog.text", "entries": {"1": "Hello World", "2": "1"}}
 (1 row)
 
 -- Test delete via SQL
 SELECT delete('{"value_type": "pg_catalog.text", "entries": {"1": "A", "2": "B", "3": "C"}}'::icollection, 1);
-    delete    
---------------
- {2: B, 3: C}
+                               delete                               
+--------------------------------------------------------------------
+ {"value_type": "pg_catalog.text", "entries": {"2": "B", "3": "C"}}
 (1 row)
 
 -- Test nested icollection
@@ -1662,11 +1662,11 @@ INSERT INTO icollection_persist_test(ic)
 INSERT INTO icollection_persist_test(ic)
   SELECT add(add(null::icollection, 1, 'hello'), 2, null::text);
 SELECT id, ic FROM icollection_persist_test ORDER BY id;
- id |                ic                
-----+----------------------------------
-  1 | {1: 100, 2: 200}
-  2 | {10: 01-01-2026, 20: 12-31-2026}
-  3 | {1: hello, 2: null}
+ id |                                           ic                                           
+----+----------------------------------------------------------------------------------------
+  1 | {"value_type": "bigint", "entries": {"1": "100", "2": "200"}}
+  2 | {"value_type": "pg_catalog.date", "entries": {"10": "01-01-2026", "20": "12-31-2026"}}
+  3 | {"value_type": "pg_catalog.text", "entries": {"1": "hello", "2": null}}
 (3 rows)
 
 SELECT id, count(ic), value_type(ic) FROM icollection_persist_test ORDER BY id;

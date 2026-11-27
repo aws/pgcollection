@@ -21,6 +21,7 @@
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/expandeddatum.h"
+#include "utils/json.h"
 #include "utils/lsyscache.h"
 
 #include "collection.h"
@@ -57,40 +58,42 @@ icollection_out(PG_FUNCTION_ARGS)
 {
 	ICollectionHeader *hdr;
 	icollection *cur;
-	int			count;
+	Oid			outfuncoid;
+	bool		typisvarlena;
+	char	   *value_type;
 	StringInfoData buf;
 
 	hdr = fetch_icollection(fcinfo, 0);
 
-	count = HASH_COUNT(hdr->head);
-	if (count == 0)
+	if (hdr->head == NULL)
 		PG_RETURN_CSTRING("{}");
 
+	getTypeOutputInfo(hdr->value_type, &outfuncoid, &typisvarlena);
+	value_type = format_type_extended(hdr->value_type, -1, FORMAT_TYPE_FORCE_QUALIFY);
+
 	initStringInfo(&buf);
-	appendStringInfoString(&buf, "{");
+	appendStringInfoString(&buf, "{\"value_type\": ");
+	escape_json(&buf, value_type);
+	appendStringInfoString(&buf, ", \"entries\": {");
 
 	for (cur = hdr->head; cur != NULL; cur = cur->hh.next)
 	{
-		appendStringInfo(&buf, "%lld: ", (long long) cur->key);
+		appendStringInfo(&buf, "\"" INT64_FORMAT "\": ", cur->key);
 
 		if (cur->isnull)
 			appendStringInfoString(&buf, "null");
 		else
 		{
-			Oid			outfuncoid;
-			bool		typisvarlena;
-			char	   *value_str;
+			char	   *value_str = OidOutputFunctionCall(outfuncoid, cur->value);
 
-			getTypeOutputInfo(hdr->value_type, &outfuncoid, &typisvarlena);
-			value_str = DatumGetCString(OidFunctionCall1(outfuncoid, cur->value));
-			appendStringInfoString(&buf, value_str);
+			escape_json(&buf, value_str);
 		}
 
 		if (cur->hh.next != NULL)
 			appendStringInfoString(&buf, ", ");
 	}
 
-	appendStringInfoString(&buf, "}");
+	appendStringInfoString(&buf, "}}");
 
 	PG_RETURN_CSTRING(buf.data);
 }

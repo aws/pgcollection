@@ -757,9 +757,10 @@ BEGIN
 END
 $$;
 NOTICE:  Subscript test 18
-NOTICE:  The current val of ic is {1: 1, 2: 2, 111: 11}
-ERROR:  Invalid format
-CONTEXT:  PL/pgSQL function inline_code_block line 13 at assignment
+NOTICE:  The current val of ic is {"value_type": "bigint", "entries": {"1": "1", "2": "2", "111": "11"}}
+NOTICE:  The current val of x is {"value_type": "bigint", "entries": {"1": "1", "2": "2", "111": "11"}}
+NOTICE:  The current val of ic[2] is 2
+NOTICE:  The current val of x[2] is 2
 -- Subscript test 19: copy then assign
 DO $$
 DECLARE
